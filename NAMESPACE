@@ -47,3 +47,5 @@ export(sparq_pipeline_ranked_feature)
 
 export(sparq_pipeline)
 export(sparq_known_truth_benchmark)
+export(sparq_read_result_file)
+export(sparq_assess_cohort_parallel)

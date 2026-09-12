@@ -166,3 +166,166 @@ function (reference_type = c("none", "simulation", "replicate",
         apply_correction = apply_correction, calibration_reason = paste("Correction supported using", 
             reference_type, "reference data."))
 }
+sparq_read_result_file <-
+function (path, reader = NULL) 
+{
+    if (length(path) != 1 || is.na(path) || !nzchar(path) || 
+        !file.exists(path)) {
+        stop("Result file does not exist: ", path, call. = FALSE)
+    }
+    ext <- tolower(tools::file_ext(path))
+    if (!is.null(reader)) {
+        return(reader(path, stringsAsFactors = FALSE, check.names = FALSE))
+    }
+    if (ext %in% c("tsv", "txt")) {
+        return(read.delim(path, sep = "\t", stringsAsFactors = FALSE, 
+            check.names = FALSE))
+    }
+    if (ext == "csv") {
+        return(read.csv(path, stringsAsFactors = FALSE, check.names = FALSE))
+    }
+    if (ext == "rds") {
+        return(readRDS(path))
+    }
+    stop("Unsupported result-file type: ", ext, call. = FALSE)
+}
+sparq_assess_precomputed_files <-
+function (full_file, perturbed_file, comparator = sparq_compare_scalar, 
+    full_result_id_col = "result_id", perturbed_result_id_col = "result_id", 
+    full_value_col = NULL, perturbed_value_col = NULL, reader = NULL, 
+    ...) 
+{
+    full_results <- sparq_read_result_file(full_file, reader = reader)
+    perturbed_results <- sparq_read_result_file(perturbed_file, 
+        reader = reader)
+    if (is.list(full_results) && is.list(perturbed_results) && 
+        !is.data.frame(full_results) && !is.data.frame(perturbed_results)) {
+        return(sparq_assess_precomputed(full_results = full_results, 
+            perturbed_results = perturbed_results, comparator = comparator, 
+            ...))
+    }
+    if (!is.data.frame(full_results) || !is.data.frame(perturbed_results)) {
+        stop("Result files must contain data frames or named RDS lists.", 
+            call. = FALSE)
+    }
+    if (!all(c(full_result_id_col) %in% names(full_results))) {
+        stop("Full-result file is missing column: ", full_result_id_col, 
+            call. = FALSE)
+    }
+    if (!all(c(perturbed_result_id_col) %in% names(perturbed_results))) {
+        stop("Perturbed-result file is missing column: ", perturbed_result_id_col, 
+            call. = FALSE)
+    }
+    if (is.null(full_value_col)) {
+        candidates <- c("value", "estimate", "statistic", "score", 
+            "theta_full")
+        hit <- candidates[candidates %in% names(full_results)]
+        if (!length(hit)) {
+            stop("Could not identify the full-result value column. ", 
+                "Supply full_value_col explicitly.", call. = FALSE)
+        }
+        full_value_col <- hit[1]
+    }
+    if (is.null(perturbed_value_col)) {
+        candidates <- c("value", "estimate", "statistic", "score", 
+            "theta_pert")
+        hit <- candidates[candidates %in% names(perturbed_results)]
+        if (!length(hit)) {
+            stop("Could not identify the perturbed-result value column. ", 
+                "Supply perturbed_value_col explicitly.", call. = FALSE)
+        }
+        perturbed_value_col <- hit[1]
+    }
+    full_results[[full_result_id_col]] <- as.character(full_results[[full_result_id_col]])
+    perturbed_results[[perturbed_result_id_col]] <- as.character(perturbed_results[[perturbed_result_id_col]])
+    full_results[[full_value_col]] <- suppressWarnings(as.numeric(full_results[[full_value_col]]))
+    perturbed_results[[perturbed_value_col]] <- suppressWarnings(as.numeric(perturbed_results[[perturbed_value_col]]))
+    full_list <- lapply(split(full_results[[full_value_col]], 
+        full_results[[full_result_id_col]]), function(x) {
+        x <- x[is.finite(x)]
+        if (!length(x)) 
+            NA_real_
+        else median(x)
+    })
+    perturbed_list <- lapply(split(perturbed_results[[perturbed_value_col]], 
+        perturbed_results[[perturbed_result_id_col]]), function(x) {
+        x[is.finite(x)]
+    })
+    sparq_assess_precomputed(full_results = full_list, perturbed_results = perturbed_list, 
+        comparator = comparator, ...)
+}
+sparq_assess_cohort_parallel <-
+function (sample_data, analysis_function, comparator, stress_model = "uniform_random", 
+    retention = 0.75, n_iterations = 50, workers = 1, checkpoint_dir = NULL, 
+    resume = TRUE, error_log = NULL, seed = 1, ...) 
+{
+    if (is.null(names(sample_data))) {
+        names(sample_data) <- paste0("sample_", seq_along(sample_data))
+    }
+    sample_ids <- names(sample_data)
+    if (!is.null(checkpoint_dir)) {
+        dir.create(checkpoint_dir, recursive = TRUE, showWarnings = FALSE)
+    }
+    if (is.null(error_log) && !is.null(checkpoint_dir)) {
+        error_log <- file.path(checkpoint_dir, "SPARQ_error_log.tsv")
+    }
+    run_one <- function(sample_id) {
+        checkpoint_file <- NULL
+        if (!is.null(checkpoint_dir)) {
+            checkpoint_file <- file.path(checkpoint_dir, paste0(sample_id, 
+                ".rds"))
+        }
+        if (resume && !is.null(checkpoint_file) && file.exists(checkpoint_file)) {
+            return(list(result = readRDS(checkpoint_file), error = NULL))
+        }
+        message("Processing sample: ", sample_id)
+        ans <- tryCatch({
+            result <- sparq_run_with_stress_model(data = sample_data[[sample_id]], 
+                analysis_function = analysis_function, comparator = comparator, 
+                stress_model = stress_model, retention = retention, 
+                n_iterations = n_iterations, result_id = sample_id, 
+                seed = seed, ...)
+            if (!is.null(checkpoint_file)) {
+                saveRDS(result, checkpoint_file)
+            }
+            list(result = result, error = NULL)
+        }, error = function(e) {
+            list(result = NULL, error = data.frame(result_id = sample_id, 
+                error_message = conditionMessage(e), stringsAsFactors = FALSE))
+        })
+        ans
+    }
+    if (workers > 1) {
+        workers <- min(as.integer(workers), length(sample_ids))
+        cl <- parallel::makeCluster(workers)
+        on.exit(parallel::stopCluster(cl), add = TRUE)
+        parallel::clusterExport(cl, varlist = c("sample_data", 
+            "analysis_function", "comparator", "stress_model", 
+            "retention", "n_iterations", "checkpoint_dir", "resume", 
+            "seed", "run_one"), envir = environment())
+        outputs <- parallel::parLapply(cl, sample_ids, run_one)
+    }
+    else {
+        outputs <- lapply(sample_ids, run_one)
+    }
+    successful <- outputs[vapply(outputs, function(x) !is.null(x$result), 
+        logical(1))]
+    failed <- outputs[vapply(outputs, function(x) !is.null(x$error), 
+        logical(1))]
+    result_table <- NULL
+    if (length(successful)) {
+        result_table <- do.call(rbind, lapply(successful, function(x) x$result))
+        rownames(result_table) <- NULL
+    }
+    error_table <- NULL
+    if (length(failed)) {
+        error_table <- do.call(rbind, lapply(failed, function(x) x$error))
+        if (!is.null(error_log)) {
+            write.table(error_table, error_log, sep = "\t", row.names = FALSE, 
+                quote = FALSE)
+        }
+    }
+    list(results = result_table, errors = error_table, expected_samples = sample_ids, 
+        completed_samples = if (is.null(result_table)) character() else result_table$result_id, 
+        failed_samples = if (is.null(error_table)) character() else error_table$result_id)
+}
