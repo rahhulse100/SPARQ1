@@ -1,0 +1,43 @@
+ACTIVE R SCRIPTS
+
+===== R/bias.R =====
+32 R/bias.R
+1:sparq_bias <- function(data,
+
+===== R/calibrate.R =====
+156 R/calibrate.R
+1:sparq_calibration_estimators <- function(theta_full, theta_pert) {
+50:sparq_calibrate <- function(data,
+148:sparq_decide <- function(calibration_table) {
+
+===== R/pipeline.R =====
+34 R/pipeline.R
+1:sparq_pipeline <- function(data,
+
+===== R/ranked_feature.R =====
+438 R/ranked_feature.R
+1:sparq_prepare_ranked_feature_input <- function(
+96:sparq_validate_ranked_feature <- function(data, ...) {
+100:sparq_trimmed_median_internal <- function(x, trim = 0.2) {
+112:sparq_signed_quantile_internal <- function(x) {
+122:sparq_empirical_bayes_internal <- function(x, prior_strength = 20) {
+128:sparq_severity_regression_internal <- function(loss_fraction, delta) {
+145:sparq_safe_cor_internal <- function(x, y, method = "spearman") {
+154:sparq_rank_turnover <- function(
+185:sparq_bias_ranked_feature <- function(
+268:sparq_calibrate_ranked_feature <- function(
+357:sparq_sample_fragility_ranked_feature <- function(turnover_table) {
+393:sparq_pipeline_ranked_feature <- function(
+
+===== R/reproducibility.R =====
+35 R/reproducibility.R
+1:sparq_reproducibility_feature <- function(data,
+
+===== R/support.R =====
+59 R/support.R
+1:sparq_support <- function(bias_table,
+
+===== R/utils.R =====
+1 R/utils.R
+
+PIPELINE REFERENCES
