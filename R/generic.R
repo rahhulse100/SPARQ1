@@ -251,19 +251,6 @@ function (full_result, perturbed_results, comparator, result_id = "result",
     list(result_id = result_id, comparisons = comparison_table, 
         summary = summary)
 }
-sparq_run <-
-function (data, analysis_function, perturbation_function, comparator, 
-    n_iterations = 50, result_id = "result", ...) 
-{
-    full_result <- analysis_function(data)
-    perturbed_results <- vector(mode = "list", length = n_iterations)
-    for (i in seq_len(n_iterations)) {
-        perturbed_data <- perturbation_function(data, iteration = i)
-        perturbed_results[[i]] <- analysis_function(perturbed_data)
-    }
-    sparq_assess(full_result = full_result, perturbed_results = perturbed_results, 
-        comparator = comparator, result_id = result_id, ...)
-}
 sparq_calibrate_threshold <-
 function (support_quality, truth) 
 {

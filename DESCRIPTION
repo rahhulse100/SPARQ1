@@ -13,3 +13,14 @@ Imports:
     data.table
 Suggests:
     testthat
+Collate:
+    'utils.R'
+    'bias.R'
+    'calibrate.R'
+    'generic.R'
+    'reproducibility.R'
+    'ranked_feature.R'
+    'support.R'
+    'pipeline.R'
+    'api.R'
+    'benchmark.R'
