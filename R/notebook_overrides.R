@@ -1267,3 +1267,44 @@ function (data, required_cols = c("result_id", "theta_full",
     }
     invisible(TRUE)
 }
+sparq_assess_precomputed_files <-
+function (full_file, perturbed_file, comparator = sparq_compare_scalar, 
+    reader = read.delim, result_id_col = "result_id", full_value_col = "value", 
+    perturbed_value_col = "value", ...) 
+{
+    if (!file.exists(full_file)) {
+        stop("Full-result file does not exist: ", full_file, 
+            call. = FALSE)
+    }
+    if (!file.exists(perturbed_file)) {
+        stop("Perturbed-result file does not exist: ", perturbed_file, 
+            call. = FALSE)
+    }
+    full_table <- reader(full_file, sep = "\t", stringsAsFactors = FALSE, 
+        check.names = FALSE, ...)
+    perturbed_table <- reader(perturbed_file, sep = "\t", stringsAsFactors = FALSE, 
+        check.names = FALSE, ...)
+    required_full <- c(result_id_col, full_value_col)
+    required_perturbed <- c(result_id_col, perturbed_value_col)
+    missing_full <- setdiff(required_full, names(full_table))
+    missing_perturbed <- setdiff(required_perturbed, names(perturbed_table))
+    if (length(missing_full)) {
+        stop("Full-result file is missing: ", paste(missing_full, 
+            collapse = ", "), call. = FALSE)
+    }
+    if (length(missing_perturbed)) {
+        stop("Perturbed-result file is missing: ", paste(missing_perturbed, 
+            collapse = ", "), call. = FALSE)
+    }
+    full_table[[result_id_col]] <- as.character(full_table[[result_id_col]])
+    perturbed_table[[result_id_col]] <- as.character(perturbed_table[[result_id_col]])
+    full_table[[full_value_col]] <- as.numeric(full_table[[full_value_col]])
+    perturbed_table[[perturbed_value_col]] <- as.numeric(perturbed_table[[perturbed_value_col]])
+    full_results <- lapply(split(full_table[[full_value_col]], 
+        full_table[[result_id_col]]), function(x) median(x[is.finite(x)], 
+        na.rm = TRUE))
+    perturbed_results <- lapply(split(perturbed_table[[perturbed_value_col]], 
+        perturbed_table[[result_id_col]]), function(x) x[is.finite(x)])
+    sparq_assess_precomputed(full_results = full_results, perturbed_results = perturbed_results, 
+        comparator = comparator)
+}
