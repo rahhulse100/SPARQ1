@@ -46,3 +46,4 @@ export(sparq_sample_fragility_ranked_feature)
 export(sparq_pipeline_ranked_feature)
 
 export(sparq_pipeline)
+export(sparq_known_truth_benchmark)
