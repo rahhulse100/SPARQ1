@@ -329,3 +329,130 @@ function (sample_data, analysis_function, comparator, stress_model = "uniform_ra
         completed_samples = if (is.null(result_table)) character() else result_table$result_id, 
         failed_samples = if (is.null(error_table)) character() else error_table$result_id)
 }
+sparq_calibrate_threshold <-
+function (support_quality, truth, held_out_support_quality = NULL, 
+    held_out_truth = NULL, folds = 5, B = 2000, seed = 1, min_class_n = 5) 
+{
+    set.seed(seed)
+    ok <- is.finite(support_quality) & !is.na(truth)
+    support_quality <- sparq_bound01(as.numeric(support_quality[ok]))
+    truth <- as.integer(truth[ok])
+    if (length(unique(truth)) != 2 || sum(truth == 1) < min_class_n || 
+        sum(truth == 0) < min_class_n) {
+        stop("Both truth classes require at least ", min_class_n, 
+            " samples.", call. = FALSE)
+    }
+    metric_at_threshold <- function(threshold, support, truth) {
+        predicted <- support >= threshold
+        stable <- truth == 1
+        unstable <- truth == 0
+        sensitivity <- mean(predicted[stable])
+        specificity <- mean(!predicted[unstable])
+        data.frame(threshold = threshold, sensitivity = sensitivity, 
+            specificity = specificity, balanced_accuracy = (sensitivity + 
+                specificity)/2)
+    }
+    threshold_grid <- sort(unique(c(seq(0, 1, length.out = 1001), 
+        support_quality)))
+    train_table <- do.call(rbind, lapply(threshold_grid, metric_at_threshold, 
+        support = support_quality, truth = truth))
+    best <- train_table[which.max(train_table$balanced_accuracy), 
+        , drop = FALSE]
+    calibrated_threshold <- best$threshold
+    bootstrap_thresholds <- replicate(B, {
+        index <- sample(seq_along(support_quality), replace = TRUE)
+        boot_support <- support_quality[index]
+        boot_truth <- truth[index]
+        boot_table <- do.call(rbind, lapply(threshold_grid, metric_at_threshold, 
+            support = boot_support, truth = boot_truth))
+        boot_table$threshold[which.max(boot_table$balanced_accuracy)]
+    })
+    threshold_interval <- as.numeric(quantile(bootstrap_thresholds, 
+        probs = c(0.025000000000000001, 0.97499999999999998), 
+        na.rm = TRUE))
+    threshold_interval <- data.frame(threshold = calibrated_threshold, 
+        lower = threshold_interval[1], upper = threshold_interval[2])
+    fold_id <- sample(rep(seq_len(folds), length.out = length(support_quality)))
+    cv_results <- do.call(rbind, lapply(seq_len(folds), function(fold) {
+        train_index <- fold_id != fold
+        test_index <- fold_id == fold
+        train_support <- support_quality[train_index]
+        train_truth <- truth[train_index]
+        test_support <- support_quality[test_index]
+        test_truth <- truth[test_index]
+        fold_table <- do.call(rbind, lapply(threshold_grid, metric_at_threshold, 
+            support = train_support, truth = train_truth))
+        fold_threshold <- fold_table$threshold[which.max(fold_table$balanced_accuracy)]
+        test_metrics <- metric_at_threshold(fold_threshold, test_support, 
+            test_truth)
+        test_metrics$fold <- fold
+        test_metrics
+    }))
+    held_out_metrics <- NULL
+    if (!is.null(held_out_support_quality) && !is.null(held_out_truth)) {
+        held_out_ok <- is.finite(held_out_support_quality) & 
+            !is.na(held_out_truth)
+        held_out_metrics <- metric_at_threshold(calibrated_threshold, 
+            sparq_bound01(as.numeric(held_out_support_quality[held_out_ok])), 
+            as.integer(held_out_truth[held_out_ok]))
+    }
+    list(threshold = calibrated_threshold, threshold_interval = threshold_interval, 
+        training_metrics = best, cross_validation = cv_results, 
+        held_out_metrics = held_out_metrics, bootstrap_thresholds = bootstrap_thresholds)
+}
+sparq_reliability_curve <-
+function (support_quality, true_error, bins = 8, min_observations_per_bin = 10, 
+    B = 2000, seed = 1) 
+{
+    set.seed(seed)
+    ok <- is.finite(support_quality) & is.finite(true_error)
+    support_quality <- sparq_bound01(as.numeric(support_quality[ok]))
+    true_error <- as.numeric(true_error[ok])
+    if (length(support_quality) < min_observations_per_bin) {
+        stop("Not enough observations for reliability analysis.", 
+            call. = FALSE)
+    }
+    bins <- min(bins, floor(length(support_quality)/min_observations_per_bin))
+    rank_order <- order(support_quality)
+    ordered_support <- support_quality[rank_order]
+    ordered_error <- true_error[rank_order]
+    bin_id <- cut(seq_along(ordered_support), breaks = bins, 
+        labels = FALSE)
+    observed <- lapply(seq_len(bins), function(i) {
+        index <- bin_id == i
+        support <- ordered_support[index]
+        error <- ordered_error[index]
+        if (length(support) < min_observations_per_bin) {
+            return(NULL)
+        }
+        bootstrap_error <- replicate(B, median(sample(error, 
+            replace = TRUE)))
+        error_ci <- as.numeric(quantile(bootstrap_error, probs = c(0.025000000000000001, 
+            0.97499999999999998), na.rm = TRUE))
+        data.frame(bin = i, n = length(support), support_mean = mean(support), 
+            support_median = median(support), true_error_mean = mean(error), 
+            true_error_median = median(error), true_error_ci_low = error_ci[1], 
+            true_error_ci_high = error_ci[2], calibration_error = mean(abs(support - 
+                sparq_bound01(1 - error))), stringsAsFactors = FALSE)
+    })
+    observed <- observed[!vapply(observed, is.null, logical(1))]
+    if (!length(observed)) {
+        stop("No reliability bins met the minimum observation requirement.", 
+            call. = FALSE)
+    }
+    curve <- do.call(rbind, observed)
+    rownames(curve) <- NULL
+    monotonicity <- NA_real_
+    monotonicity_p <- NA_real_
+    if (nrow(curve) >= 3) {
+        test <- suppressWarnings(cor.test(curve$support_mean, 
+            curve$true_error_median, method = "spearman", exact = FALSE))
+        monotonicity <- as.numeric(test$estimate)
+        monotonicity_p <- test$p.value
+    }
+    overall_calibration_error <- weighted.mean(curve$calibration_error, 
+        curve$n)
+    list(curve = curve, monotonicity_spearman = monotonicity, 
+        monotonicity_p_value = monotonicity_p, overall_calibration_error = overall_calibration_error, 
+        n_observations = length(support_quality), n_bins = nrow(curve))
+}
