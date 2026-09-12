@@ -1,0 +1,15 @@
+Package: SPARQ
+Title: Spatial Perturbation Analysis for Reliability Quantification
+Version: 0.0.2
+Authors@R: person("Rahhul", "Elangovan", email = "rahhul.s.elangovan-1@ou.edu", role = c("aut", "cre"))
+Description: Measures reproducibility, perturbation bias, support quality, and bounded up/down calibration for spatial transcriptomic analysis results under spot-level perturbation.
+License: MIT
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends:
+    R (>= 4.1.0)
+Imports:
+    stats,
+    data.table
+Suggests:
+    testthat

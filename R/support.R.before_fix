@@ -1,0 +1,59 @@
+sparq_support <- function(bias_table,
+                          reproducibility_table = NULL,
+                          min_iterations = 50,
+                          min_direction_consistency = 0.70,
+                          max_sign_flip_rate = 0.30,
+                          min_reproducibility = 0.50) {
+  needed <- c("result_id", "n_perturbations", "bias", "uncertainty", "direction_consistency", "sign_flip_rate")
+  missing <- setdiff(needed, colnames(bias_table))
+  if (length(missing)) {
+    stop("Missing required bias columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+
+  out <- bias_table
+
+  out$iteration_support <- sparq_bound01(out$n_perturbations / min_iterations)
+  out$direction_support <- sparq_bound01((out$direction_consistency - 0.5) / (min_direction_consistency - 0.5))
+
+  signal <- abs(out$bias)
+  noise <- out$uncertainty + .Machine$double.eps
+  out$signal_to_uncertainty <- signal / noise
+  out$uncertainty_support <- sparq_bound01(out$signal_to_uncertainty / 2)
+
+  out$reproducibility_score <- 1
+
+  if (!is.null(reproducibility_table)) {
+    rep_cols <- intersect(c("spearman", "pearson", "sign_agreement"), colnames(reproducibility_table))
+    if (length(rep_cols)) {
+      rep_score <- rowMeans(reproducibility_table[, rep_cols, drop = FALSE], na.rm = TRUE)
+      rep_df <- data.frame(
+        result_id = reproducibility_table$result_id,
+        reproducibility_score = rep_score,
+        stringsAsFactors = FALSE
+      )
+      out <- merge(out, rep_df, by = "result_id", all.x = TRUE, suffixes = c("", ".from_rep"))
+      out$reproducibility_score <- out$reproducibility_score.from_rep
+      out$reproducibility_score.from_rep <- NULL
+    }
+  }
+
+  out$reproducibility_support <- sparq_bound01(out$reproducibility_score / min_reproducibility)
+
+  out$support_quality <- sparq_bound01(
+    out$iteration_support *
+      out$direction_support *
+      out$uncertainty_support *
+      out$reproducibility_support
+  )
+
+  out$insufficient_support <- with(
+    out,
+    n_perturbations < min_iterations |
+      is.na(direction_consistency) |
+      direction_consistency < min_direction_consistency |
+      sign_flip_rate > max_sign_flip_rate |
+      support_quality <= 0
+  )
+
+  out
+}
