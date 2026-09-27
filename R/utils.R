@@ -22,9 +22,6 @@ sparq_safe_cor <- function(x, y, method = "spearman") {
   suppressWarnings(stats::cor(x[ok], y[ok], method = method))
 }
 
-sparq_bound01 <- function(x) {
-  pmax(0, pmin(1, x))
-}
 
 sparq_mode_sign_fraction <- function(x) {
   x <- x[is.finite(x) & x != 0]
@@ -94,9 +91,6 @@ sparq_validate_ranked_feature <- function(
   invisible(TRUE)
 }
 
-sparq_bound01 <- function(x) {
-  pmax(0, pmin(1, x))
-}
 
 sparq_safe_cor <- function(x, y, method = "spearman") {
   ok <- is.finite(x) & is.finite(y)

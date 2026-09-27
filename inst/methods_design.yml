@@ -1,0 +1,27 @@
+protocol_version: "methods-v1"
+seed: 20260912
+n_samples: 1200
+n_per_class: 300
+n_observations: 50
+reference_mean: 1
+observation_sd_multiplier: 1
+observation_sd_floor: 0
+n_iterations: 100
+retention: 0.75
+n_replicates: 20
+train_fraction: 0.7
+reference_scale: 1
+min_iterations: 50
+min_reproducibility: 0.5
+max_relative_bias: 0.5
+max_relative_uncertainty: 0.25
+threshold_bootstrap_B: 2000
+instability_bootstrap_B: 2000
+reliability_bootstrap_B: 2000
+reliability_permutation_B: 2000
+confidence: 0.95
+reliability_bins: 10
+min_observations_per_bin: 10
+stress_retentions: [1.00, 0.75, 0.50, 0.25, 0.10]
+stress_calibration_retention: 0.75
+stress_bootstrap_B: 2000

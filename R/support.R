@@ -1,3 +1,4 @@
+sparq_support <-
 function (bias_table, reproducibility_table = NULL, min_iterations = 50, 
     min_direction_consistency = 0.69999999999999996, max_sign_flip_rate = 0.29999999999999999, 
     min_reproducibility = 0.5, max_relative_bias = 0.5, max_relative_uncertainty = 0.25) 
