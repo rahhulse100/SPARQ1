@@ -39,41 +39,14 @@ function (full_file, perturbed_file, comparator = sparq_compare_scalar,
     sparq_assess_precomputed(full_results = full_results, perturbed_results = perturbed_results, 
         comparator = comparator)
 }
-sparq_calibrate_scalar <-
-function (observed_value, perturbed_values, reference_type = c("none", 
+sparq_calibrate_scalar <- function (observed_value, perturbed_values, reference_type = c("none", 
     "simulation", "replicate", "pathology"), apply_correction = FALSE, 
     ...) 
 {
     reference_type <- match.arg(reference_type)
-    raw <- sparq_calibrate_scalar_raw(observed_value = observed_value, 
-        perturbed_values = perturbed_values, ...)
-    correction_supported <- raw$calibration_status == "supported"
-    policy <- sparq_calibration_policy(reference_type = reference_type, 
-        correction_supported = correction_supported, apply_correction = apply_correction)
-    out <- raw
-    out$calibration_reference <- reference_type
-    out$apply_correction <- policy$apply_correction
-    if (correction_supported && policy$apply_correction) {
-        out$calibration_status <- "validated"
-        out$calibration_direction <- raw$calibration_direction
-        out$calibrated_value <- raw$calibrated_value
-        out$calibration_reason <- policy$calibration_reason
-    }
-    else if (correction_supported && reference_type == "none") {
-        out$calibration_status <- "conditional"
-        out$calibration_direction <- raw$calibration_direction
-        out$calibrated_value <- observed_value
-        out$apply_correction <- FALSE
-        out$calibration_reason <- policy$calibration_reason
-    }
-    else {
-        out$calibration_status <- "not_supported"
-        out$calibration_direction <- "none"
-        out$calibrated_value <- observed_value
-        out$apply_correction <- FALSE
-        out$calibration_reason <- policy$calibration_reason
-    }
-    out
+    sparq_calibrate_scalar_raw(observed_value = observed_value, 
+        perturbed_values = perturbed_values, reference_type = reference_type, 
+        apply_correction = apply_correction, ...)
 }
 sparq_calibration_policy <-
 function (reference_type = c("none", "simulation", "replicate", 
