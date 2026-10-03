@@ -14,4 +14,4 @@ Imports: stats, data.table, parallel, utils, tools
 Suggests: testthat
 Collate: 'utils.R' 'generic.R' 'ranked_feature.R' 'support.R' 'api.R'
         'legacy_exports.R' 'methods_impl.R' 'workflow.R' 'adaptive.R'
-        'ablation.R'
+        'script_adapter.R' 'ablation.R'
