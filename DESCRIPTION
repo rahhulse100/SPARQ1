@@ -13,5 +13,4 @@ Depends: R (>= 4.1.0)
 Imports: stats, data.table, parallel, utils, tools
 Suggests: testthat
 Collate: 'utils.R' 'generic.R' 'ranked_feature.R' 'support.R' 'api.R'
-        'benchmark.R' 'benchmark_parallel.R' 'notebook_overrides.R'
         'legacy_exports.R' 'methods_impl.R' 'ablation.R'
