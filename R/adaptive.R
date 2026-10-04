@@ -3,7 +3,7 @@
 sparq_assess_adaptive <-
 function(data, analysis_function, comparator,
     stress_model = "uniform_random", retention = NULL,
-    support_threshold, batch_size = NULL, min_iterations = NULL,
+    support_threshold = NULL, batch_size = NULL, min_iterations = NULL,
     max_iterations = NULL, confidence = 0.95,
     support_bootstrap_B = NULL, result_id = "result",
     x_col = NULL, y_col = NULL, custom_function = NULL,
@@ -12,7 +12,9 @@ function(data, analysis_function, comparator,
     keep_perturbed_results = FALSE,
     min_reproducibility = 0.5, max_relative_bias = 0.5,
     max_relative_uncertainty = 0.25,
-    instability_bootstrap_B = NULL, verbose = NULL, preset = "standard") {
+    instability_bootstrap_B = NULL, verbose = NULL, preset = "standard",
+    reliability_tolerance = NULL, required_reliability = 0.9,
+    reliability_confidence = NULL) {
 
     failure_action <- match.arg(failure_action)
     preset_values <- sparq_resolve_preset(
@@ -37,7 +39,25 @@ function(data, analysis_function, comparator,
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
     }
-    sparq_check_number(support_threshold, "support_threshold", 0, 1)
+    if (is.null(support_threshold) && is.null(reliability_tolerance)) {
+        stop("Supply support_threshold for calibrated-score stopping or reliability_tolerance for tolerance-based stopping.",
+            call. = FALSE)
+    }
+    if (!is.null(support_threshold) && !is.null(reliability_tolerance)) {
+        stop("Supply either support_threshold or reliability_tolerance, not both.",
+            call. = FALSE)
+    }
+    decision_mode <- if (is.null(reliability_tolerance)) "calibrated_support" else "reliability_certificate"
+    if (decision_mode == "calibrated_support") {
+        sparq_check_number(support_threshold, "support_threshold", 0, 1)
+    } else {
+        sparq_check_number(reliability_tolerance, "reliability_tolerance", 0)
+        sparq_check_number(required_reliability, "required_reliability",
+            .Machine$double.eps, 1 - .Machine$double.eps)
+        if (is.null(reliability_confidence)) reliability_confidence <- confidence
+        sparq_check_number(reliability_confidence, "reliability_confidence",
+            .Machine$double.eps, 1 - .Machine$double.eps)
+    }
     sparq_check_number(batch_size, "batch_size", 1, integer = TRUE)
     sparq_check_number(min_iterations, "min_iterations", 2, integer = TRUE)
     sparq_check_number(max_iterations, "max_iterations", min_iterations, integer = TRUE)
@@ -182,20 +202,33 @@ function(data, analysis_function, comparator,
             n_requested = iteration,
             summary_seed = sparq_seed(seed, iteration, 3)
         )
-        interval <- bootstrap_support_interval(
-            comparison_table = comparisons,
-            n_requested = iteration,
-            interval_seed = sparq_seed(seed, iteration, 4)
-        )
-
-        batch_decision <- if (is.finite(interval["lower"]) &&
-            interval["lower"] > support_threshold) {
-            "above_threshold"
-        } else if (is.finite(interval["upper"]) &&
-            interval["upper"] < support_threshold) {
-            "below_threshold"
+        if (decision_mode == "reliability_certificate") {
+            reliability <- sparq_reliability_decision(
+                comparison_table = comparisons,
+                tolerance = reliability_tolerance,
+                required_reliability = required_reliability,
+                confidence = reliability_confidence,
+                reference_scale = reference_scale
+            )
+            interval <- c(lower = reliability$lower_confidence_bound[1],
+                upper = reliability$upper_confidence_bound[1])
+            batch_decision <- reliability$decision[1]
         } else {
-            "inconclusive"
+            reliability <- NULL
+            interval <- bootstrap_support_interval(
+                comparison_table = comparisons,
+                n_requested = iteration,
+                interval_seed = sparq_seed(seed, iteration, 4)
+            )
+            batch_decision <- if (is.finite(interval["lower"]) &&
+                interval["lower"] > support_threshold) {
+                "above_threshold"
+            } else if (is.finite(interval["upper"]) &&
+                interval["upper"] < support_threshold) {
+                "below_threshold"
+            } else {
+                "inconclusive"
+            }
         }
 
         history[[length(history) + 1L]] <- data.frame(
@@ -205,23 +238,36 @@ function(data, analysis_function, comparator,
             support_quality = summary$support_quality[1],
             support_ci_low = interval["lower"],
             support_ci_high = interval["upper"],
-            support_threshold = support_threshold,
+            support_threshold = if (is.null(support_threshold)) NA_real_ else support_threshold,
+            decision_mode = decision_mode,
+            reliability_tolerance = if (is.null(reliability_tolerance)) NA_real_ else reliability_tolerance,
+            required_reliability = if (is.null(reliability_tolerance)) NA_real_ else required_reliability,
             decision = batch_decision,
             stringsAsFactors = FALSE
         )
-        sparq_inform(
-            paste0(
-                "Adaptive check after ", iteration, " perturbations: support ",
-                format(summary$support_quality[1], digits = 4), "; interval [",
-                format(interval["lower"], digits = 4), ", ",
-                format(interval["upper"], digits = 4), "]; ", batch_decision, "."
-            ),
-            verbose
-        )
+        if (decision_mode == "reliability_certificate") {
+            sparq_inform(
+                paste0("Adaptive check after ", iteration,
+                    " perturbations: preservation ",
+                    format(reliability$preservation_rate[1], digits = 4),
+                    "; confidence interval [", format(interval["lower"], digits = 4),
+                    ", ", format(interval["upper"], digits = 4),
+                    "]; ", batch_decision, "."), verbose)
+        } else {
+            sparq_inform(
+                paste0(
+                    "Adaptive check after ", iteration, " perturbations: support ",
+                    format(summary$support_quality[1], digits = 4), "; interval [",
+                    format(interval["lower"], digits = 4), ", ",
+                    format(interval["upper"], digits = 4), "]; ", batch_decision, "."
+                ), verbose)
+        }
 
         if (batch_decision != "inconclusive") {
             decision <- batch_decision
-            stop_reason <- if (batch_decision == "above_threshold") {
+            stop_reason <- if (decision_mode == "reliability_certificate") {
+                if (batch_decision == "supported") "reliability_lower_bound_met" else "reliability_upper_bound_below_requirement"
+            } else if (batch_decision == "above_threshold") {
                 "support_interval_above_threshold"
             } else {
                 "support_interval_below_threshold"
@@ -243,6 +289,20 @@ function(data, analysis_function, comparator,
         summary_seed = sparq_seed(seed, n_attempted, 3)
     )
 
+    final_reliability <- NULL
+    if (decision_mode == "reliability_certificate") {
+        final_reliability <- sparq_reliability_decision(
+            comparison_table = comparisons,
+            tolerance = reliability_tolerance,
+            required_reliability = required_reliability,
+            confidence = reliability_confidence,
+            reference_scale = reference_scale
+        )
+        for (name in names(final_reliability)) {
+            summary[[paste0("reliability_", name)]] <- final_reliability[[name]][1]
+        }
+    }
+
     if (is.null(stop_reason)) {
         stop_reason <- "maximum_iterations_reached"
     }
@@ -259,11 +319,15 @@ function(data, analysis_function, comparator,
         perturbed_results = perturbed_results,
         comparisons = comparisons,
         summary = summary,
+        reliability_decision = final_reliability,
         adaptive_history = sparq_bind_rows(history),
         adaptive_decision = data.frame(
             decision = decision,
             stop_reason = stop_reason,
-            support_threshold = support_threshold,
+            support_threshold = if (is.null(support_threshold)) NA_real_ else support_threshold,
+            decision_mode = decision_mode,
+            reliability_tolerance = if (is.null(reliability_tolerance)) NA_real_ else reliability_tolerance,
+            required_reliability = if (is.null(reliability_tolerance)) NA_real_ else required_reliability,
             n_attempted = n_attempted,
             stringsAsFactors = FALSE
         ),
@@ -274,6 +338,10 @@ function(data, analysis_function, comparator,
             max_iterations = max_iterations,
             batch_size = batch_size,
             support_threshold = support_threshold,
+            decision_mode = decision_mode,
+            reliability_tolerance = reliability_tolerance,
+            required_reliability = required_reliability,
+            reliability_confidence = reliability_confidence,
             confidence = confidence,
             support_bootstrap_B = support_bootstrap_B,
             instability_bootstrap_B = instability_bootstrap_B,

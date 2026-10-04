@@ -22,7 +22,8 @@ sparq_preset(preset = c("quick", "standard", "thorough"))
 sparq_validate_workflow(data, analysis_function,
   output_type = c("scalar", "ranked", "partition", "graph"), ...)
 
-sparq_assess_adaptive(data, analysis_function, comparator, support_threshold, ...)
+sparq_assess_adaptive(data, analysis_function, comparator,
+  support_threshold = NULL, reliability_tolerance = NULL, ...)
 
 sparq_assess_script(data, script, input_object, result_object,
   output_type = c("scalar", "ranked", "partition", "graph"), ...)
@@ -51,6 +52,14 @@ sparq_assess_spatial(object, analysis_function,
   \item{comparator}{A function comparing reference and perturbed results.}
   \item{support_threshold}{A prespecified decision threshold for adaptive
   stopping. It is never inferred from the reference result.}
+  \item{reliability_tolerance}{Optional prespecified normalized comparator
+  distance defining an acceptably preserved result. When supplied to an
+  assessment, SPARQ returns a reliability decision. When supplied to adaptive
+  assessment, it replaces support-score stopping with exact-binomial
+  reliability stopping.}
+  \item{required_reliability}{Minimum preservation probability required for a
+  tolerance-based reliability decision.}
+  \item{reliability_confidence}{Confidence level for the reliability interval.}
   \item{script}{One existing R script.}
   \item{input_object}{The name under which SPARQ injects current perturbed data
   into a script environment.}
@@ -73,6 +82,8 @@ sparq_assess_spatial(object, analysis_function,
 \code{sparq_assess_workflow}, \code{sparq_assess_script}, and
 \code{sparq_assess_spatial} return a SPARQ assessment with a reference result,
 comparison table, support summary, failed-iteration ledger, and settings.
+When a reliability tolerance is supplied, they also return a three-way
+tolerance-based reliability decision without altering score calibration.
 \code{sparq_assess_adaptive} also returns the stopping history and decision.
 \code{sparq_preset} returns the exact named settings selected by a preset.
 \code{sparq_validate_workflow} returns a \code{sparq_workflow_preflight}

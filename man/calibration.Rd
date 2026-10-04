@@ -7,7 +7,8 @@
 \alias{sparq_calibration_policy}
 \alias{sparq_finalize_support}
 \alias{sparq_reliability_curve}
-\title{Calibrate and interpret SPARQ decisions}
+\alias{sparq_reliability_decision}
+\title{Calibrate support scores and determine perturbation reliability}
 \description{
 These functions separate continuous support-quality assessment from optional
 threshold calibration and scalar correction policy.
@@ -18,6 +19,9 @@ sparq_decide(support_quality, threshold)
 sparq_calibrate_scalar(observed_value, perturbed_values,
   reference_type = c("none", "simulation", "replicate", "pathology"), ...)
 sparq_reliability_curve(support_quality, true_error, ...)
+
+sparq_reliability_decision(comparison_table, tolerance,
+  required_reliability = 0.90, confidence = 0.95, ...)
 }}
 \arguments{
   \item{training_score}{Continuous support-quality values from training cases.}
@@ -28,6 +32,13 @@ sparq_reliability_curve(support_quality, true_error, ...)
   \item{perturbed_values}{Scalar results from perturbation runs.}
   \item{reference_type}{Evidence source for whether scalar correction is allowed.}
   \item{true_error}{Known simulation error or latent-instability measure.}
+  \item{comparison_table}{One row per attempted perturbation, including
+  code{status} and code{instability}.}
+  \item{tolerance}{Prespecified maximum normalized perturbation distance that
+  still counts as preserving the result.}
+  \item{required_reliability}{Prespecified minimum probability of preserving
+  the result.}
+  \item{confidence}{Confidence level for the exact binomial reliability interval.}
   \item{...}{Bootstrap, confidence, reference, and calibration controls.}
 }
 \value{
@@ -37,10 +48,20 @@ Scalar calibration returns the original or conditionally corrected value with an
 explicit status.
 Reliability functions return binned association summaries; they do not claim
 probability calibration unless separately validated.
+\code{sparq_reliability_decision} returns the observed preservation rate, an
+exact confidence interval, and a three-way decision: code{supported},
+\code{not_supported}, or code{inconclusive}. Failed perturbation runs count
+as not preserving the result.
 }
 \examples{
 scores <- c(0.95, 0.90, 0.20, 0.10)
 truth <- c(1, 1, 0, 0)
 calibration <- sparq_calibrate_threshold(scores, truth, B = 20)
 calibration$threshold
+
+comparisons <- data.frame(
+  status = rep("ok", 10),
+  instability = c(rep(0.02, 9), 0.20)
+)
+sparq_reliability_decision(comparisons, tolerance = 0.05)
 }

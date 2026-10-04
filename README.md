@@ -99,6 +99,26 @@ plot(assessment)
 All presets retain 75% of observations by default. Use `sparq_preset()` to
 inspect the complete setting list, or override any setting directly.
 
+## Tolerance-based reliability decisions
+
+Support quality remains a continuous score that can be calibrated on known
+truth. Separately, SPARQ can make a direct three-way decision from the observed
+perturbations when the analyst prespecifies an acceptable normalized change.
+The decision is `supported`, `not_supported`, or `inconclusive`; failed reruns
+count conservatively as not preserving the result.
+
+```r
+assessment <- sparq_assess_workflow(
+  data = spot_data,
+  analysis_function = function(data) mean(data$signature_score),
+  output_type = "scalar",
+  reliability_tolerance = 0.10,
+  required_reliability = 0.90
+)
+
+assessment$reliability_decision
+```
+
 SPARQ prints a compact execution log by default: the reference analysis,
 perturbation progress, and the final support result. Printing the assessment
 itself gives the same decision-relevant summary without requiring users to
@@ -178,6 +198,11 @@ adaptive_assessment <- sparq_assess_adaptive(
 adaptive_assessment$adaptive_history
 adaptive_assessment$adaptive_decision
 ```
+
+For tolerance-based stopping, use `reliability_tolerance` instead of
+`support_threshold`. This avoids the support-score bootstrap at each adaptive
+check and stops as soon as the exact reliability interval supports a final
+decision.
 
 ## Cohort analyses
 

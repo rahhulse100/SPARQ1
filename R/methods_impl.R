@@ -796,6 +796,48 @@ function (support_quality, true_error, benchmark_id = NULL, bins = 10,
         p_value_method = "two-sided Monte Carlo permutation of latent instability across benchmark IDs",
         interpretation = "Median scale discrepancy is descriptive, not probability calibration error.")
 }
+sparq_reliability_decision <-
+function (comparison_table, tolerance, required_reliability = 0.9,
+    confidence = 0.95, reference_scale = 1)
+{
+    if (!is.data.frame(comparison_table) || !nrow(comparison_table) ||
+        !all(c("status", "instability") %in% names(comparison_table)))
+        stop("comparison_table must contain attempted perturbations with status and instability.",
+            call. = FALSE)
+    sparq_check_number(tolerance, "tolerance", 0)
+    sparq_check_number(required_reliability, "required_reliability",
+        .Machine$double.eps, 1 - .Machine$double.eps)
+    sparq_check_number(confidence, "confidence", .Machine$double.eps,
+        1 - .Machine$double.eps)
+    sparq_check_number(reference_scale, "reference_scale")
+    scale <- max(abs(reference_scale), 9.9999999999999995e-07)
+    n_attempted <- nrow(comparison_table)
+    distance <- suppressWarnings(as.numeric(comparison_table$instability))
+    completed <- comparison_table$status == "ok" & is.finite(distance)
+    preserved <- completed & distance/scale <= tolerance
+    n_preserved <- sum(preserved)
+    alpha <- 1 - confidence
+    lower <- if (n_preserved == 0L)
+        0
+    else stats::qbeta(alpha/2, n_preserved, n_attempted - n_preserved +
+        1L)
+    upper <- if (n_preserved == n_attempted)
+        1
+    else stats::qbeta(1 - alpha/2, n_preserved + 1L, n_attempted -
+        n_preserved)
+    decision <- if (lower >= required_reliability)
+        "supported"
+    else if (upper < required_reliability)
+        "not_supported"
+    else "inconclusive"
+    data.frame(n_attempted = n_attempted, n_completed = sum(completed),
+        n_failed = n_attempted - sum(completed), n_preserved = n_preserved,
+        preservation_rate = n_preserved/n_attempted,
+        lower_confidence_bound = lower, upper_confidence_bound = upper,
+        tolerance = tolerance, required_reliability = required_reliability,
+        confidence = confidence, reference_scale = scale,
+        decision = decision, stringsAsFactors = FALSE)
+}
 sparq_run <-
 function (data, analysis_function, comparator, stress_model = "uniform_random",
     retention = NULL, n_iterations = NULL, result_id = "result",
@@ -804,7 +846,8 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
     failure_action = c("record", "stop"), full_result = NULL,
     keep_perturbed_results = FALSE, verbose = NULL, progress_every = NULL,
     preset = "standard", min_iterations = NULL,
-    instability_bootstrap_B = NULL, ...)
+    instability_bootstrap_B = NULL, reliability_tolerance = NULL,
+    required_reliability = 0.9, reliability_confidence = 0.95, ...)
 {
     failure_action <- match.arg(failure_action)
     preset_values <- sparq_resolve_preset(
@@ -960,6 +1003,20 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
             instability_bootstrap_B = instability_bootstrap_B),
         failures = comparisons[comparisons$status != "ok", ,
             drop = FALSE])
+    if (!is.null(reliability_tolerance)) {
+        reliability <- sparq_reliability_decision(comparisons,
+            tolerance = reliability_tolerance,
+            required_reliability = required_reliability,
+            confidence = reliability_confidence,
+            reference_scale = reference_scale)
+        out$reliability_decision <- reliability
+        for (name in names(reliability)) {
+            out$summary[[paste0("reliability_", name)]] <- reliability[[name]][1]
+        }
+        out$settings$reliability_tolerance <- reliability_tolerance
+        out$settings$required_reliability <- required_reliability
+        out$settings$reliability_confidence <- reliability_confidence
+    }
     class(out) <- unique(c("sparq_assessment", class(out)))
     sparq_inform(
         paste0(

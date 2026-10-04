@@ -142,6 +142,14 @@ sparq_print_assessment <- function(x, label = "assessment") {
   if (isTRUE(summary_table$insufficient_support[1])) {
     cat("  Reason: ", summary_table$support_reason[1], "\n", sep = "")
   }
+  if (is.data.frame(x$reliability_decision) && nrow(x$reliability_decision) == 1L) {
+    cat(
+      "  Reliability decision: ", x$reliability_decision$decision[1],
+      " (", format(x$reliability_decision$lower_confidence_bound[1], digits = 3),
+      "-", format(x$reliability_decision$upper_confidence_bound[1], digits = 3),
+      " confidence interval)\n", sep = ""
+    )
+  }
   invisible(x)
 }
 
