@@ -1,11 +1,13 @@
 Package: SPARQ
 Title: Spatial Perturbation Analysis for Reliability Quantification
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: person("Rahhul", "Elangovan", email =
         "rahhul.s.elangovan-1@ou.edu", role = c("aut", "cre"))
-Description: Measures reproducibility, perturbation bias, support
-        quality, and bounded up/down calibration for spatial
-        transcriptomic analysis results under spot-level perturbation.
+Description: Quantifies the reliability of spatial-transcriptomic analysis
+        results under explicit spot-loss distributions. Provides perturbation
+        support summaries, tolerance-based reliability certificates,
+        anytime-valid adaptive stopping, retention frontiers, and cohort-level
+        reliability inference.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -13,5 +15,6 @@ Depends: R (>= 4.1.0)
 Imports: stats, parallel, utils, tools, data.table
 Suggests: testthat
 Collate: 'utils.R' 'usability.R' 'generic.R' 'ranked_feature.R' 'support.R' 'api.R'
-        'legacy_exports.R' 'methods_impl.R' 'workflow.R' 'adaptive.R'
-        'script_adapter.R' 'spatial_adapter.R' 'ablation.R'
+        'legacy_exports.R' 'methods_impl.R' 'reliability_advanced.R'
+        'spatial_loss.R' 'workflow.R' 'adaptive.R' 'script_adapter.R'
+        'spatial_adapter.R' 'frontier.R' 'cohort_reliability.R' 'ablation.R'

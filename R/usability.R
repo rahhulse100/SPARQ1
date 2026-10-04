@@ -414,20 +414,41 @@ sparq_assess_cohort_workflow <- function(sample_data, analysis_function,
     completed_at = as.character(Sys.time()), R_version = R.version.string,
     package_version = package_version
   )
+  reliability <- NULL
+  completed_assessments <- Filter(Negate(is.null), assessments)
+  if (length(completed_assessments) && all(vapply(
+      completed_assessments,
+      function(assessment) is.data.frame(assessment$reliability_decision) &&
+        nrow(assessment$reliability_decision) == 1L,
+      logical(1)
+    ))) {
+    reliability <- sparq_infer_cohort_reliability(completed_assessments)
+  }
   files <- list()
   if (!is.null(output_dir)) {
     files$manifest <- file.path(output_dir, "cohort_manifest.tsv")
     files$summaries <- file.path(output_dir, "cohort_support_summary.tsv")
     files$failures <- file.path(output_dir, "cohort_failures.tsv")
     files$settings <- file.path(output_dir, "cohort_settings.rds")
+    if (!is.null(reliability)) {
+      files$reliability <- file.path(output_dir, "cohort_reliability.tsv")
+    }
     utils::write.table(manifest, files$manifest, sep = "\t", row.names = FALSE, quote = FALSE)
     utils::write.table(summaries, files$summaries, sep = "\t", row.names = FALSE, quote = FALSE)
     utils::write.table(failures, files$failures, sep = "\t", row.names = FALSE, quote = FALSE)
+    if (!is.null(reliability)) {
+      utils::write.table(
+        reliability$section_reliability,
+        files$reliability,
+        sep = "\t", row.names = FALSE, quote = FALSE
+      )
+    }
     saveRDS(settings, files$settings)
   }
   out <- list(
     summaries = summaries, failures = failures, manifest = manifest,
-    settings = settings, assessments = assessments, output_files = files
+    settings = settings, assessments = assessments, output_files = files,
+    reliability = reliability
   )
   class(out) <- "sparq_cohort_assessment"
   out

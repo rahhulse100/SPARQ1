@@ -10,7 +10,7 @@ function (data, analysis_function, output_type = c("scalar",
         "stop"), verbose = NULL, progress_every = NULL, preset = "standard",
     min_iterations = NULL, instability_bootstrap_B = NULL,
     reliability_tolerance = NULL, required_reliability = 0.9,
-    reliability_confidence = 0.95, ...)
+    reliability_confidence = 0.95, loss_model = NULL, ...)
 {
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
@@ -44,6 +44,7 @@ function (data, analysis_function, output_type = c("scalar",
         reliability_tolerance = reliability_tolerance,
         required_reliability = required_reliability,
         reliability_confidence = reliability_confidence,
+        loss_model = loss_model,
         ...)
     fit$output_type <- output_type
     fit$workflow <- list(output_type = output_type, stress_model = stress_model,
@@ -53,7 +54,8 @@ function (data, analysis_function, output_type = c("scalar",
             top_k
         } else {
             NA_integer_
-        }, x_col = x_col, y_col = y_col, seed = seed)
+        }, x_col = x_col, y_col = y_col, seed = seed,
+        loss_model = loss_model)
     fit$fragility <- NULL
     class(fit) <- unique(c("sparq_workflow_assessment", class(fit)))
     fit
@@ -374,9 +376,19 @@ function (assessment, output_dir = NULL, include_plots = TRUE, verbose = TRUE)
     summary_table <- report_assessment$summary
     comparison_table <- report_assessment$comparisons
     failure_table <- report_assessment$failures
+    loss_audits <- report_assessment$loss_audits
+    reliability_decision <- report_assessment$reliability_decision
+    reliability_sequence <- report_assessment$reliability_confidence_sequence
     settings_table <- data.frame(setting = names(report_assessment$settings),
         value = vapply(report_assessment$settings, function(x) {
-            paste(as.character(x), collapse = ";")
+            if (is.null(x)) {
+                return("")
+            }
+            if (is.atomic(x)) {
+                return(paste(as.character(x), collapse = ";"))
+            }
+            paste(utils::capture.output(str(x, give.attr = FALSE)),
+                collapse = " ")
         }, character(1)), stringsAsFactors = FALSE)
     output_type <- if (!is.null(report_assessment$output_type)) {
         as.character(report_assessment$output_type)
@@ -495,6 +507,29 @@ function (assessment, output_dir = NULL, include_plots = TRUE, verbose = TRUE)
         output_files$failures <- write_table(failure_table, "failed_iterations.tsv")
         output_files$settings <- write_table(settings_table,
             "settings.tsv")
+        if (is.data.frame(reliability_decision)) {
+            output_files$reliability_decision <- write_table(reliability_decision,
+                "reliability_decision.tsv")
+        }
+        if (is.data.frame(reliability_sequence)) {
+            output_files$reliability_confidence_sequence <- write_table(reliability_sequence,
+                "reliability_confidence_sequence.tsv")
+        }
+        if (is.list(loss_audits) && length(loss_audits)) {
+            audit_tables <- lapply(seq_along(loss_audits), function(iteration) {
+                audit <- loss_audits[[iteration]]
+                if (!is.data.frame(audit)) {
+                    return(NULL)
+                }
+                audit$iteration <- iteration
+                audit
+            })
+            audit_tables <- Filter(Negate(is.null), audit_tables)
+            if (length(audit_tables)) {
+                output_files$spot_loss_audit <- write_table(sparq_bind_rows(audit_tables),
+                    "spot_loss_audit.tsv")
+            }
+        }
         for (table_name in names(fragility_tables)) {
             output_files[[paste0("fragility_", table_name)]] <- write_table(fragility_tables[[table_name]],
                 paste0("fragility_", table_name, ".tsv"))
@@ -522,6 +557,8 @@ function (assessment, output_dir = NULL, include_plots = TRUE, verbose = TRUE)
         comparisons = comparison_table, failures = failure_table,
         settings = report_assessment$settings, fragility = report_assessment$fragility,
         fragility_tables = fragility_tables, fragility_note = fragility_note,
+        loss_audits = loss_audits, reliability_decision = reliability_decision,
+        reliability_confidence_sequence = reliability_sequence,
         output_files = output_files)
     class(report) <- "sparq_report"
     if (!is.null(output_dir)) {

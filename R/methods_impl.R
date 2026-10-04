@@ -847,7 +847,8 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
     keep_perturbed_results = FALSE, verbose = NULL, progress_every = NULL,
     preset = "standard", min_iterations = NULL,
     instability_bootstrap_B = NULL, reliability_tolerance = NULL,
-    required_reliability = 0.9, reliability_confidence = 0.95, ...)
+    required_reliability = 0.9, reliability_confidence = 0.95,
+    loss_model = NULL, ...)
 {
     failure_action <- match.arg(failure_action)
     preset_values <- sparq_resolve_preset(
@@ -869,6 +870,10 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
     }
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
+    }
+    if (!is.null(loss_model) && !inherits(loss_model, "sparq_loss_model")) {
+        stop("loss_model must be created by sparq_define_loss_model().",
+            call. = FALSE)
     }
     sparq_inform(
         paste0(
@@ -897,6 +902,7 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
                 NULL
             }, stress_model = stress_model, retention = retention,
             seed = seed, x_col = x_col, y_col = y_col, cache_key = cache_key,
+            loss_model = loss_model,
             keep_perturbed_results = keep_perturbed_results,
             implementation = sparq_engine_signature())
         cache_prefix <- file.path(cache_dir, sparq_fingerprint(cache_identity))
@@ -915,6 +921,12 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
         else {
             NULL
         }
+        loss_audit_path <- if (!is.null(cache_prefix) && !is.null(loss_model)) {
+            file.path(cache_prefix, paste0(iteration, "_loss_audit.rds"))
+        }
+        else {
+            NULL
+        }
         if (resume && !is.null(comparison_path) && file.exists(comparison_path)) {
             cached_comparison <- readRDS(comparison_path)
             cached_ok <- (is.data.frame(cached_comparison) &&
@@ -922,7 +934,9 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
                 "ok"))
             cached_result_available <- (!keep_perturbed_results ||
                 file.exists(result_path))
-            if (cached_ok && cached_result_available) {
+            cached_audit_available <- (is.null(loss_audit_path) ||
+                file.exists(loss_audit_path))
+            if (cached_ok && cached_result_available && cached_audit_available) {
                 if (iteration %% progress_every == 0L || iteration == n_iterations) {
                     sparq_progress(iteration, n_iterations, verbose)
                 }
@@ -930,6 +944,10 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
                   readRDS(result_path)
                 } else {
                   NULL
+                }, loss_audit = if (!is.null(loss_audit_path)) {
+                    readRDS(loss_audit_path)
+                } else {
+                    NULL
                 }))
             }
         }
@@ -938,17 +956,18 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
             perturbed_data <- sparq_stress_model(data = data,
                 retention = retention, model = stress_model,
                 x_col = x_col, y_col = y_col, custom_function = custom_function,
-                iteration = iteration, seed = seed)
+                iteration = iteration, seed = seed, loss_model = loss_model)
             perturbed_result <- analysis_function(perturbed_data)
             comparison <- sparq_comparison_row(comparator = comparator,
                 full_result = full_result, perturbed_result = perturbed_result,
                 iteration = iteration)
-            comparison$n_retained <- nrow(perturbed_data)
+                comparison$n_retained <- nrow(perturbed_data)
+            comparison$loss_model <- if (is.null(loss_model)) stress_model else loss_model$type
             list(comparison = comparison, perturbed_result = if (keep_perturbed_results) {
                 perturbed_result
             } else {
                 NULL
-            })
+            }, loss_audit = attr(perturbed_data, "sparq_loss_audit"))
         }), error = function(error) {
             if (failure_action == "stop") {
                 stop(paste0("Iteration ", iteration, ": ", conditionMessage(error)),
@@ -965,6 +984,9 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
                 "ok")) {
                 sparq_atomic_rds(output$perturbed_result, result_path)
             }
+            if (!is.null(loss_audit_path) && !is.null(output$loss_audit)) {
+                sparq_atomic_rds(output$loss_audit, loss_audit_path)
+            }
         }
         if (iteration %% progress_every == 0L || iteration == n_iterations) {
             sparq_progress(iteration, n_iterations, verbose)
@@ -974,6 +996,12 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
     comparisons <- sparq_bind_rows(lapply(iteration_output, function(x) {
         x$comparison
     }))
+    loss_audits <- lapply(iteration_output, function(x) x$loss_audit)
+    if (all(vapply(loss_audits, is.null, logical(1)))) {
+        loss_audits <- NULL
+    } else {
+        names(loss_audits) <- paste0("iteration_", seq_len(n_iterations))
+    }
     summary <- sparq_support_from_comparisons(comparison_table = comparisons,
         n_iterations = n_iterations, reference_scale = reference_scale,
         min_iterations = min_iterations,
@@ -995,12 +1023,14 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
         names(perturbed_results) <- paste0("iteration_", seq_len(n_iterations))
     }
     out <- list(result_id = result_id, full_result = full_result, perturbed_results = perturbed_results,
+        loss_audits = loss_audits,
         comparisons = comparisons, summary = summary, settings = list(stress_model = stress_model,
             retention = retention, n_iterations = n_iterations,
             reference_scale = reference_scale, seed = seed, keep_perturbed_results = keep_perturbed_results,
             progress_every = progress_every, preset = preset_values$preset,
             min_iterations = min_iterations,
-            instability_bootstrap_B = instability_bootstrap_B),
+            instability_bootstrap_B = instability_bootstrap_B,
+            loss_model = loss_model),
         failures = comparisons[comparisons$status != "ok", ,
             drop = FALSE])
     if (!is.null(reliability_tolerance)) {
@@ -1063,7 +1093,7 @@ function (b, train_fraction, seed)
 sparq_stress_model <-
 function (data, retention = 0.75, model = c("uniform_random",
     "contiguous_hole", "none", "custom"), x_col = NULL, y_col = NULL,
-    custom_function = NULL, iteration = 1, seed = NULL)
+    custom_function = NULL, iteration = 1, seed = NULL, loss_model = NULL)
 {
     model <- match.arg(model)
     if (!is.data.frame(data) || !nrow(data))
@@ -1071,6 +1101,18 @@ function (data, retention = 0.75, model = c("uniform_random",
     sparq_check_number(retention, "retention", .Machine$double.eps,
         1)
     sparq_check_number(iteration, "iteration", 1, integer = TRUE)
+    if (!is.null(loss_model)) {
+        if (!inherits(loss_model, "sparq_loss_model"))
+            stop("loss_model must be created by sparq_define_loss_model().",
+                call. = FALSE)
+        applied <- sparq_apply_loss_model(data = data,
+            loss_model = loss_model, retention = retention, x_col = x_col,
+            y_col = y_col, iteration = iteration, seed = seed)
+        perturbed <- applied$data
+        attr(perturbed, "sparq_loss_audit") <- applied$audit
+        attr(perturbed, "sparq_loss_model") <- loss_model
+        return(perturbed)
+    }
     generate <- function() {
         if (model == "none")
             return(data)

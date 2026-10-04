@@ -55,11 +55,14 @@ sparq_assess_spatial(object, analysis_function,
   \item{reliability_tolerance}{Optional prespecified normalized comparator
   distance defining an acceptably preserved result. When supplied to an
   assessment, SPARQ returns a reliability decision. When supplied to adaptive
-  assessment, it replaces support-score stopping with exact-binomial
-  reliability stopping.}
+  assessment, it replaces support-score stopping with anytime-valid
+  beta-binomial-mixture reliability stopping.}
   \item{required_reliability}{Minimum preservation probability required for a
   tolerance-based reliability decision.}
   \item{reliability_confidence}{Confidence level for the reliability interval.}
+  \item{loss_model}{Optional explicit \code{sparq_loss_model} created with
+  \code{sparq_define_loss_model}. It determines the retained-spot sampling
+  distribution and is recorded with the assessment.}
   \item{script}{One existing R script.}
   \item{input_object}{The name under which SPARQ injects current perturbed data
   into a script environment.}
@@ -84,7 +87,8 @@ sparq_assess_spatial(object, analysis_function,
 comparison table, support summary, failed-iteration ledger, and settings.
 When a reliability tolerance is supplied, they also return a three-way
 tolerance-based reliability decision without altering score calibration.
-\code{sparq_assess_adaptive} also returns the stopping history and decision.
+\code{sparq_assess_adaptive} also returns the stopping history, decision, and,
+for reliability stopping, the full anytime-valid confidence sequence.
 \code{sparq_preset} returns the exact named settings selected by a preset.
 \code{sparq_validate_workflow} returns a \code{sparq_workflow_preflight}
 object containing the reference and dry-run results plus a pass/fail table.

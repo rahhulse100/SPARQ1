@@ -38,6 +38,9 @@ sparq_support_from_comparisons(comparison_table, n_iterations = nrow(comparison_
   when meaningful, a signed displacement.}
   \item{stress_model}{\code{"uniform_random"}, \code{"contiguous_hole"},
   \code{"none"}, or \code{"custom"}.}
+  \item{loss_model}{Optional \code{sparq_loss_model}. When supplied, this
+  explicit loss distribution determines retained spots in place of the built-in
+  stress-model selection.}
   \item{retention}{Fraction of observations retained in each perturbation.}
   \item{n_iterations}{Number of requested perturbation runs.}
   \item{full_result, perturbed_results}{Previously computed reference and

@@ -14,7 +14,7 @@ function(data, analysis_function, comparator,
     max_relative_uncertainty = 0.25,
     instability_bootstrap_B = NULL, verbose = NULL, preset = "standard",
     reliability_tolerance = NULL, required_reliability = 0.9,
-    reliability_confidence = NULL) {
+    reliability_confidence = NULL, loss_model = NULL) {
 
     failure_action <- match.arg(failure_action)
     preset_values <- sparq_resolve_preset(
@@ -38,6 +38,10 @@ function(data, analysis_function, comparator,
     }
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
+    }
+    if (!is.null(loss_model) && !inherits(loss_model, "sparq_loss_model")) {
+        stop("loss_model must be created by sparq_define_loss_model().",
+            call. = FALSE)
     }
     if (is.null(support_threshold) && is.null(reliability_tolerance)) {
         stop("Supply support_threshold for calibrated-score stopping or reliability_tolerance for tolerance-based stopping.",
@@ -151,7 +155,8 @@ function(data, analysis_function, comparator,
                     y_col = y_col,
                     custom_function = custom_function,
                     iteration = iteration,
-                    seed = seed
+                    seed = seed,
+                    loss_model = loss_model
                 )
                 perturbed_result <- analysis_function(perturbed_data)
                 comparison <- sparq_comparison_row(
@@ -161,9 +166,11 @@ function(data, analysis_function, comparator,
                     iteration = iteration
                 )
                 comparison$n_retained <- nrow(perturbed_data)
+                comparison$loss_model <- if (is.null(loss_model)) stress_model else loss_model$type
                 list(
                     comparison = comparison,
-                    perturbed_result = if (keep_perturbed_results) perturbed_result else NULL
+                    perturbed_result = if (keep_perturbed_results) perturbed_result else NULL,
+                    loss_audit = attr(perturbed_data, "sparq_loss_audit")
                 )
             }),
             error = function(error) {
@@ -203,13 +210,14 @@ function(data, analysis_function, comparator,
             summary_seed = sparq_seed(seed, iteration, 3)
         )
         if (decision_mode == "reliability_certificate") {
-            reliability <- sparq_reliability_decision(
+            sequence <- sparq_reliability_confidence_sequence(
                 comparison_table = comparisons,
                 tolerance = reliability_tolerance,
                 required_reliability = required_reliability,
                 confidence = reliability_confidence,
                 reference_scale = reference_scale
             )
+            reliability <- sequence[nrow(sequence), , drop = FALSE]
             interval <- c(lower = reliability$lower_confidence_bound[1],
                 upper = reliability$upper_confidence_bound[1])
             batch_decision <- reliability$decision[1]
@@ -250,7 +258,7 @@ function(data, analysis_function, comparator,
                 paste0("Adaptive check after ", iteration,
                     " perturbations: preservation ",
                     format(reliability$preservation_rate[1], digits = 4),
-                    "; confidence interval [", format(interval["lower"], digits = 4),
+                    "; confidence sequence [", format(interval["lower"], digits = 4),
                     ", ", format(interval["upper"], digits = 4),
                     "]; ", batch_decision, "."), verbose)
         } else {
@@ -290,14 +298,16 @@ function(data, analysis_function, comparator,
     )
 
     final_reliability <- NULL
+    reliability_sequence <- NULL
     if (decision_mode == "reliability_certificate") {
-        final_reliability <- sparq_reliability_decision(
+        reliability_sequence <- sparq_reliability_confidence_sequence(
             comparison_table = comparisons,
             tolerance = reliability_tolerance,
             required_reliability = required_reliability,
             confidence = reliability_confidence,
             reference_scale = reference_scale
         )
+        final_reliability <- reliability_sequence[nrow(reliability_sequence), , drop = FALSE]
         for (name in names(final_reliability)) {
             summary[[paste0("reliability_", name)]] <- final_reliability[[name]][1]
         }
@@ -312,14 +322,22 @@ function(data, analysis_function, comparator,
         perturbed_results <- lapply(outputs, `[[`, "perturbed_result")
         names(perturbed_results) <- paste0("iteration_", seq_len(n_attempted))
     }
+    loss_audits <- lapply(outputs, function(output) output$loss_audit)
+    if (all(vapply(loss_audits, is.null, logical(1)))) {
+        loss_audits <- NULL
+    } else {
+        names(loss_audits) <- paste0("iteration_", seq_len(n_attempted))
+    }
 
     out <- list(
         result_id = result_id,
         full_result = full_result,
         perturbed_results = perturbed_results,
+        loss_audits = loss_audits,
         comparisons = comparisons,
         summary = summary,
         reliability_decision = final_reliability,
+        reliability_confidence_sequence = reliability_sequence,
         adaptive_history = sparq_bind_rows(history),
         adaptive_decision = data.frame(
             decision = decision,
@@ -342,6 +360,7 @@ function(data, analysis_function, comparator,
             reliability_tolerance = reliability_tolerance,
             required_reliability = required_reliability,
             reliability_confidence = reliability_confidence,
+            loss_model = loss_model,
             confidence = confidence,
             support_bootstrap_B = support_bootstrap_B,
             instability_bootstrap_B = instability_bootstrap_B,

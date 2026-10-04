@@ -201,8 +201,68 @@ adaptive_assessment$adaptive_decision
 
 For tolerance-based stopping, use `reliability_tolerance` instead of
 `support_threshold`. This avoids the support-score bootstrap at each adaptive
-check and stops as soon as the exact reliability interval supports a final
+check and stops as soon as the sequential reliability interval supports a final
 decision.
+
+### Sequentially valid stopping
+
+Adaptive reliability stopping uses an anytime-valid beta-binomial mixture
+confidence sequence, rather than repeatedly checking an ordinary fixed-time
+interval. Its bounds remain valid across the accumulating perturbation stream.
+This means the stopping decision remains tied to the stated confidence level
+when SPARQ stops early.
+
+## Spatial loss mechanisms
+
+Every SPARQ claim is conditional on a stated loss mechanism. In addition to
+uniform loss and a contiguous spatial hole, define quality-weighted or
+edge-weighted loss explicitly. The retained spot set and its per-spot weights
+are audited for every application.
+
+```r
+quality_loss <- sparq_define_loss_model(
+  type = "quality_weighted",
+  quality_col = "library_size",
+  quality_direction = "higher_quality_retained",
+  quality_strength = 1
+)
+
+assessment <- sparq_assess_workflow(
+  data = spot_data,
+  analysis_function = function(data) mean(data$signature_score),
+  output_type = "scalar",
+  loss_model = quality_loss,
+  reliability_tolerance = 0.10,
+  required_reliability = 0.90
+)
+```
+
+`edge_weighted` loss requires coordinates and preferentially removes spots
+farther from the coordinate-wise tissue center. These are specified stress
+distributions, not assertions that one mechanism is the true missingness model.
+
+## Reliability frontiers
+
+One retention value answers whether a conclusion survives one sampling regime.
+A frontier answers how much sampling can be lost before the conclusion is no
+longer certified on a prespecified grid. SPARQ reports the lowest *evaluated*
+retention that remains supported at every higher evaluated retention; it never
+interpolates a critical value between grid points.
+
+```r
+frontier <- sparq_assess_frontier(
+  data = spot_data,
+  analysis_function = function(data) mean(data$signature_score),
+  output_type = "scalar",
+  retentions = c(0.50, 0.60, 0.75, 0.90, 1.00),
+  reliability_tolerance = 0.10,
+  required_reliability = 0.90
+)
+
+frontier$frontier
+frontier$critical_retention
+plot(frontier)
+```
 
 ## Cohort analyses
 
@@ -223,6 +283,17 @@ cohort <- sparq_assess_cohort_workflow(
 
 cohort$manifest
 cohort$failures
+```
+
+When every section uses the same tolerance and reliability requirement, cohort
+assessment also returns `cohort$reliability`. It uses an empirical-Bayes
+beta-binomial model to distinguish finite perturbation uncertainty within each
+section from reliability variation between sections. It does not treat spots as
+biological replicates.
+
+```r
+cohort$reliability$section_reliability
+cohort$reliability$cohort_summary
 ```
 
 ## Reports and audit bundles
