@@ -7,7 +7,7 @@ function (data, analysis_function, output_type = c("scalar",
     top_k = 100, x_col = NULL, y_col = NULL, custom_function = NULL,
     result_id = "result", reference_scale = 1, seed = 1, cache_dir = NULL,
     resume = TRUE, cache_key = NULL, failure_action = c("record",
-        "stop"), ...)
+        "stop"), verbose = TRUE, ...)
 {
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
@@ -31,12 +31,14 @@ function (data, analysis_function, output_type = c("scalar",
             sparq_compare_ranked(full_rank = full_result, perturbed_rank = perturbed_result,
                 k = top_k)
         }, partition = sparq_compare_partition, graph = sparq_compare_graph)
+    sparq_inform(paste0("Preparing a ", output_type, " workflow assessment."), verbose)
     fit <- sparq_run(data = data, analysis_function = analysis_function,
         comparator = comparator, stress_model = stress_model,
         retention = retention, n_iterations = n_iterations, result_id = result_id,
         x_col = x_col, y_col = y_col, custom_function = custom_function,
         reference_scale = reference_scale, seed = seed, cache_dir = cache_dir,
         resume = resume, cache_key = cache_key, failure_action = failure_action,
+        verbose = verbose,
         ...)
     fit$output_type <- output_type
     fit$workflow <- list(output_type = output_type, stress_model = stress_model,
@@ -315,7 +317,7 @@ function (full_result, perturbed_results, output_type = c("scalar",
     out
 }
 sparq_report <-
-function (assessment, output_dir = NULL, include_plots = TRUE)
+function (assessment, output_dir = NULL, include_plots = TRUE, verbose = TRUE)
 {
     if (!is.list(assessment)) {
         stop("assessment must be a SPARQ assessment list.", call. = FALSE)
@@ -336,6 +338,10 @@ function (assessment, output_dir = NULL, include_plots = TRUE)
         1L || is.na(include_plots)) {
         stop("include_plots must be TRUE or FALSE.", call. = FALSE)
     }
+    if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+        stop("verbose must be TRUE or FALSE.", call. = FALSE)
+    }
+    sparq_inform("Preparing an assessment report.", verbose)
     report_assessment <- assessment
     fragility_note <- NULL
     if (is.null(report_assessment$fragility)) {
@@ -516,7 +522,10 @@ function (assessment, output_dir = NULL, include_plots = TRUE)
         report_path <- file.path(output_dir, "sparq_report.rds")
         report$output_files$report <- report_path
         saveRDS(report, report_path)
+        sparq_inform(paste0("Report written to ", normalizePath(output_dir)), verbose)
+    }
+    if (is.null(output_dir)) {
+        sparq_inform("Report returned in memory; no files were written.", verbose)
     }
     report
 }
-

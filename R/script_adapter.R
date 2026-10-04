@@ -4,7 +4,7 @@ sparq_assess_script <-
 function(data, script, input_object, result_object,
     output_type = c("scalar", "ranked", "partition", "graph"),
     working_directory = c("script", "temporary"), script_args = list(),
-    ...) {
+    verbose = TRUE, ...) {
 
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
@@ -28,6 +28,13 @@ function(data, script, input_object, result_object,
     output_type <- match.arg(output_type)
     working_directory <- match.arg(working_directory)
     script_path <- normalizePath(script, mustWork = TRUE)
+    if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+        stop("verbose must be TRUE or FALSE.", call. = FALSE)
+    }
+    sparq_inform(
+        paste0("Using script ", basename(script_path), " and result object `", result_object, "`."),
+        verbose
+    )
 
     run_script <- function(perturbed_data) {
         run_directory <- if (working_directory == "script") {
@@ -68,6 +75,7 @@ function(data, script, input_object, result_object,
         data = data,
         analysis_function = run_script,
         output_type = output_type,
+        verbose = verbose,
         ...
     )
 

@@ -796,7 +796,7 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
     x_col = NULL, y_col = NULL, custom_function = NULL, reference_scale = 1,
     seed = 1, cache_dir = NULL, resume = TRUE, cache_key = NULL,
     failure_action = c("record", "stop"), full_result = NULL,
-    keep_perturbed_results = FALSE, ...)
+    keep_perturbed_results = FALSE, verbose = TRUE, progress_every = NULL, ...)
 {
     failure_action <- match.arg(failure_action)
     sparq_check_number(n_iterations, "n_iterations", 1, integer = TRUE)
@@ -809,7 +809,23 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
     }
     sparq_check_number(retention, "retention", .Machine$double.eps,
         1)
+    if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+        stop("verbose must be TRUE or FALSE.", call. = FALSE)
+    }
+    if (is.null(progress_every)) {
+        progress_every <- max(1L, as.integer(ceiling(n_iterations / 10)))
+    }
+    sparq_check_number(progress_every, "progress_every", 1, integer = TRUE)
+    sparq_inform(
+        paste0(
+            "Starting ", result_id, ": ", nrow(data), " observations; ",
+            n_iterations, " perturbations; ", round(retention * 100),
+            "% retention; ", stress_model, " stress."
+        ),
+        verbose
+    )
     if (is.null(full_result)) {
+        sparq_inform("Running reference analysis.", verbose)
         full_result <- sparq_with_seed(sparq_seed(seed, 0, 1),
             analysis_function(data))
     }
@@ -853,6 +869,9 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
             cached_result_available <- (!keep_perturbed_results ||
                 file.exists(result_path))
             if (cached_ok && cached_result_available) {
+                if (iteration %% progress_every == 0L || iteration == n_iterations) {
+                    sparq_progress(iteration, n_iterations, verbose)
+                }
                 return(list(comparison = cached_comparison, perturbed_result = if (keep_perturbed_results) {
                   readRDS(result_path)
                 } else {
@@ -893,6 +912,9 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
                 sparq_atomic_rds(output$perturbed_result, result_path)
             }
         }
+        if (iteration %% progress_every == 0L || iteration == n_iterations) {
+            sparq_progress(iteration, n_iterations, verbose)
+        }
         output
     })
     comparisons <- sparq_bind_rows(lapply(iteration_output, function(x) {
@@ -917,12 +939,23 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
         })
         names(perturbed_results) <- paste0("iteration_", seq_len(n_iterations))
     }
-    list(result_id = result_id, full_result = full_result, perturbed_results = perturbed_results,
+    out <- list(result_id = result_id, full_result = full_result, perturbed_results = perturbed_results,
         comparisons = comparisons, summary = summary, settings = list(stress_model = stress_model,
             retention = retention, n_iterations = n_iterations,
-            reference_scale = reference_scale, seed = seed, keep_perturbed_results = keep_perturbed_results),
+            reference_scale = reference_scale, seed = seed, keep_perturbed_results = keep_perturbed_results,
+            progress_every = progress_every),
         failures = comparisons[comparisons$status != "ok", ,
             drop = FALSE])
+    class(out) <- unique(c("sparq_assessment", class(out)))
+    sparq_inform(
+        paste0(
+            "Completed ", result_id, ": support quality ",
+            format(summary$support_quality[1], digits = 4), "; ",
+            sparq_assessment_status(summary), "."
+        ),
+        verbose
+    )
+    out
 }
 sparq_run_with_stress_model <-
 function (data, analysis_function, comparator, stress_model = "uniform_random",

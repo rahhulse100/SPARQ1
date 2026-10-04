@@ -49,6 +49,21 @@ assessment$summary
 assessment$comparisons
 ```
 
+SPARQ prints a compact execution log by default: the reference analysis,
+perturbation progress, and the final support result. Printing the assessment
+itself gives the same decision-relevant summary without requiring users to
+search through a wide table. Set `verbose = FALSE` for notebooks, batch jobs,
+or programmatic runs where console output is not wanted.
+
+```r
+assessment
+
+# <SPARQ workflow assessment: section_001>
+#   Output type: scalar
+#   Support quality: 0.91 (adequate support)
+#   Completed perturbations: 100/100; failed: 0
+```
+
 For domain analysis, the supplied analysis function must return a named vector of spot IDs and domain labels. For ranked and graph analyses, it must return an ordered unique feature vector or canonical edge-ID vector, respectively.
 
 ## Reusing an existing R script
@@ -87,6 +102,24 @@ adaptive_assessment <- sparq_assess_adaptive(
 
 adaptive_assessment$adaptive_history
 adaptive_assessment$adaptive_decision
+```
+
+## Reports and audit bundles
+
+`sparq_report()` returns an inspectable report object. With an `output_dir`, it
+writes a self-contained audit bundle: the support summary, perturbation table,
+failure ledger, settings, reference result, any retained perturbation results,
+fragility tables, and a PDF overview. SPARQ never creates an output directory
+unless one is explicitly supplied.
+
+```r
+report <- sparq_report(
+  assessment,
+  output_dir = "sparq_section_001_report"
+)
+
+report
+report$output_files
 ```
 
 ## Precomputed outputs

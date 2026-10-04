@@ -34,3 +34,22 @@ test_that("adaptive assessment requires a user-specified threshold", {
     "support_threshold"
   )
 })
+
+test_that("adaptive assessments provide a compact S3 summary", {
+  data <- data.frame(value = 1:30)
+  fit <- sparq_assess_adaptive(
+    data = data,
+    analysis_function = function(x) mean(x$value),
+    comparator = sparq_compare_scalar,
+    retention = 0.75,
+    support_threshold = 0.8,
+    batch_size = 2,
+    min_iterations = 2,
+    max_iterations = 4,
+    support_bootstrap_B = 10,
+    instability_bootstrap_B = 10,
+    verbose = FALSE
+  )
+
+  expect_output(print(fit), "Adaptive decision")
+})

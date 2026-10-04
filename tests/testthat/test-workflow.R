@@ -20,6 +20,22 @@ test_that("workflow assessment selects the scalar comparator and records outputs
   expect_true(all(c("support_quality", "instability_median") %in% names(fit$summary)))
 })
 
+test_that("workflow assessments provide a compact S3 summary", {
+  data <- data.frame(value = 1:20)
+  fit <- sparq_assess_workflow(
+    data = data,
+    analysis_function = function(x) mean(x$value),
+    output_type = "scalar",
+    n_iterations = 3,
+    min_iterations = 2,
+    instability_bootstrap_B = 10,
+    verbose = FALSE
+  )
+
+  expect_output(print(fit), "SPARQ workflow assessment")
+  expect_output(print(fit), "Support quality")
+})
+
 test_that("fragility localization summarizes all built-in output types", {
   scalar <- sparq_localize_fragility(1, c(0.8, 1.1, 0.9), "scalar")
   expect_null(scalar$localization)

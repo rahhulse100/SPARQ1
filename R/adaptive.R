@@ -12,7 +12,7 @@ function(data, analysis_function, comparator,
     keep_perturbed_results = FALSE,
     min_reproducibility = 0.5, max_relative_bias = 0.5,
     max_relative_uncertainty = 0.25,
-    instability_bootstrap_B = 2000) {
+    instability_bootstrap_B = 2000, verbose = TRUE) {
 
     failure_action <- match.arg(failure_action)
 
@@ -21,6 +21,9 @@ function(data, analysis_function, comparator,
     }
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
+    }
+    if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+        stop("verbose must be TRUE or FALSE.", call. = FALSE)
     }
 
     sparq_check_number(retention, "retention", .Machine$double.eps, 1)
@@ -40,6 +43,7 @@ function(data, analysis_function, comparator,
         integer = TRUE)
 
     if (is.null(full_result)) {
+        sparq_inform("Running reference analysis for adaptive assessment.", verbose)
         full_result <- sparq_with_seed(
             sparq_seed(seed, 0, 1),
             analysis_function(data)
@@ -195,6 +199,15 @@ function(data, analysis_function, comparator,
             decision = batch_decision,
             stringsAsFactors = FALSE
         )
+        sparq_inform(
+            paste0(
+                "Adaptive check after ", iteration, " perturbations: support ",
+                format(summary$support_quality[1], digits = 4), "; interval [",
+                format(interval["lower"], digits = 4), ", ",
+                format(interval["upper"], digits = 4), "]; ", batch_decision, "."
+            ),
+            verbose
+        )
 
         if (batch_decision != "inconclusive") {
             decision <- batch_decision
@@ -230,7 +243,7 @@ function(data, analysis_function, comparator,
         names(perturbed_results) <- paste0("iteration_", seq_len(n_attempted))
     }
 
-    list(
+    out <- list(
         result_id = result_id,
         full_result = full_result,
         perturbed_results = perturbed_results,
@@ -259,4 +272,7 @@ function(data, analysis_function, comparator,
         ),
         failures = comparisons[comparisons$status != "ok", , drop = FALSE]
     )
+    class(out) <- unique(c("sparq_adaptive_assessment", "sparq_assessment", class(out)))
+    sparq_inform(paste0("Adaptive assessment finished: ", stop_reason, "."), verbose)
+    out
 }
