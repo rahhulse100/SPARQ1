@@ -10,8 +10,14 @@ function (full_result, perturbed_results, comparator, result_id = "result",
     summary <- sparq_support_from_comparisons(comparisons, length(perturbed_results),
         reference_scale, seed = seed, ...)
     summary$result_id <- result_id
-    list(result_id = result_id, full_result = full_result, comparisons = comparisons,
-        summary = summary)
+    out <- list(result_id = result_id, full_result = full_result,
+        perturbed_results = perturbed_results, comparisons = comparisons,
+        summary = summary,
+        failures = comparisons[comparisons$status != "ok", , drop = FALSE],
+        settings = list(reference_scale = reference_scale, seed = seed,
+            n_iterations = length(perturbed_results)))
+    class(out) <- "sparq_assessment"
+    out
 }
 sparq_assess_cohort <-
 function (sample_data, analysis_function, comparator, ...)
@@ -792,14 +798,28 @@ function (support_quality, true_error, benchmark_id = NULL, bins = 10,
 }
 sparq_run <-
 function (data, analysis_function, comparator, stress_model = "uniform_random",
-    retention = 0.75, n_iterations = 100, result_id = "result",
+    retention = NULL, n_iterations = NULL, result_id = "result",
     x_col = NULL, y_col = NULL, custom_function = NULL, reference_scale = 1,
     seed = 1, cache_dir = NULL, resume = TRUE, cache_key = NULL,
     failure_action = c("record", "stop"), full_result = NULL,
-    keep_perturbed_results = FALSE, verbose = TRUE, progress_every = NULL, ...)
+    keep_perturbed_results = FALSE, verbose = NULL, progress_every = NULL,
+    preset = "standard", min_iterations = NULL,
+    instability_bootstrap_B = NULL, ...)
 {
     failure_action <- match.arg(failure_action)
-    sparq_check_number(n_iterations, "n_iterations", 1, integer = TRUE)
+    preset_values <- sparq_resolve_preset(
+        preset = preset, retention = retention, n_iterations = n_iterations,
+        min_iterations = min_iterations,
+        instability_bootstrap_B = instability_bootstrap_B,
+        progress_every = progress_every, verbose = verbose
+    )
+    retention <- preset_values$retention
+    n_iterations <- preset_values$n_iterations
+    min_iterations <- preset_values$min_iterations
+    instability_bootstrap_B <- preset_values$instability_bootstrap_B
+    progress_every <- preset_values$progress_every
+    verbose <- preset_values$verbose
+    sparq_inform_preset(preset_values)
     if (!is.function(analysis_function) || !is.function(comparator)) {
         stop("analysis_function and comparator must be functions.",
             call. = FALSE)
@@ -807,15 +827,6 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
     }
-    sparq_check_number(retention, "retention", .Machine$double.eps,
-        1)
-    if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
-        stop("verbose must be TRUE or FALSE.", call. = FALSE)
-    }
-    if (is.null(progress_every)) {
-        progress_every <- max(1L, as.integer(ceiling(n_iterations / 10)))
-    }
-    sparq_check_number(progress_every, "progress_every", 1, integer = TRUE)
     sparq_inform(
         paste0(
             "Starting ", result_id, ": ", nrow(data), " observations; ",
@@ -922,7 +933,8 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
     }))
     summary <- sparq_support_from_comparisons(comparison_table = comparisons,
         n_iterations = n_iterations, reference_scale = reference_scale,
-        seed = seed, ...)
+        min_iterations = min_iterations,
+        instability_bootstrap_B = instability_bootstrap_B, seed = seed, ...)
     summary$result_id <- result_id
     summary$stress_model <- stress_model
     summary$retention <- retention
@@ -943,7 +955,9 @@ function (data, analysis_function, comparator, stress_model = "uniform_random",
         comparisons = comparisons, summary = summary, settings = list(stress_model = stress_model,
             retention = retention, n_iterations = n_iterations,
             reference_scale = reference_scale, seed = seed, keep_perturbed_results = keep_perturbed_results,
-            progress_every = progress_every),
+            progress_every = progress_every, preset = preset_values$preset,
+            min_iterations = min_iterations,
+            instability_bootstrap_B = instability_bootstrap_B),
         failures = comparisons[comparisons$status != "ok", ,
             drop = FALSE])
     class(out) <- unique(c("sparq_assessment", class(out)))

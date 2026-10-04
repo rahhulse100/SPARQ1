@@ -56,6 +56,34 @@ assessment$summary
 assessment$comparisons
 ```
 
+## Presets and familiar result methods
+
+Start with a named protocol instead of choosing every setting. SPARQ prints the
+resolved settings at the start of an assessment and records them in the output.
+Explicit arguments always override one preset value.
+
+```r
+assessment <- sparq_assess_workflow(
+  data = spot_data,
+  analysis_function = function(data) mean(data$signature_score),
+  output_type = "scalar",
+  preset = "standard"
+)
+
+summary(assessment)
+as.data.frame(assessment)
+plot(assessment)
+```
+
+| Preset | Perturbations | Minimum completed | Instability bootstrap draws |
+| --- | ---: | ---: | ---: |
+| `quick` | 25 | 15 | 200 |
+| `standard` | 100 | 50 | 2,000 |
+| `thorough` | 500 | 100 | 10,000 |
+
+All presets retain 75% of observations by default. Use `sparq_preset()` to
+inspect the complete setting list, or override any setting directly.
+
 SPARQ prints a compact execution log by default: the reference analysis,
 perturbation progress, and the final support result. Printing the assessment
 itself gives the same decision-relevant summary without requiring users to
@@ -134,6 +162,27 @@ adaptive_assessment <- sparq_assess_adaptive(
 
 adaptive_assessment$adaptive_history
 adaptive_assessment$adaptive_decision
+```
+
+## Cohort analyses
+
+For many independent sections, use `sparq_assess_cohort_workflow()` rather than
+printing every perturbation from every section. It reports aggregate completion
+progress and an estimated remaining time. With `output_dir`, it exports one
+manifest containing section IDs, status, failures, elapsed time, seeds, and
+support summaries, plus the cohort settings.
+
+```r
+cohort <- sparq_assess_cohort_workflow(
+  sample_data = sections,
+  analysis_function = run_analysis,
+  output_type = "partition",
+  preset = "standard",
+  output_dir = "sparq_cohort_output"
+)
+
+cohort$manifest
+cohort$failures
 ```
 
 ## Reports and audit bundles

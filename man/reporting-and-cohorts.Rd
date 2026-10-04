@@ -6,6 +6,9 @@
 \alias{sparq_read_result_file}
 \alias{sparq_assess_cohort}
 \alias{sparq_assess_cohort_parallel}
+\alias{sparq_assess_cohort_workflow}
+\alias{summary.sparq_cohort_assessment}
+\alias{as.data.frame.sparq_cohort_assessment}
 \title{Report, localize, and aggregate SPARQ assessments}
 \description{
 Create audit-ready reports, identify unstable features, spots, or graph edges,
@@ -21,6 +24,8 @@ sparq_assess_precomputed(full_results, perturbed_results, comparator, ...)
 sparq_assess_precomputed_files(full_file, perturbed_file, comparator = sparq_compare_scalar, ...)
 sparq_assess_cohort(sample_data, analysis_function, comparator, ...)
 sparq_assess_cohort_parallel(sample_data, analysis_function, comparator, workers = 1, ...)
+sparq_assess_cohort_workflow(sample_data, analysis_function, output_type,
+  preset = "standard", output_dir = NULL, ...)
 }}
 \arguments{
   \item{assessment}{A completed SPARQ assessment.}
@@ -36,13 +41,16 @@ sparq_assess_cohort_parallel(sample_data, analysis_function, comparator, workers
   assessed independently.}
   \item{analysis_function}{Function rerun on each sample or perturbation.}
   \item{workers}{Number of local workers for cohort assessment.}
+  \item{preset}{Assessment preset passed to every section in a workflow cohort.}
   \item{...}{Assessment, localization, and file-reader controls.}
 }
 \value{
 \code{sparq_report} returns a \code{sparq_report} object and writes nothing
 unless \code{output_dir} is supplied. Localization returns a
 \code{sparq_fragility} object. Cohort functions return one summary row per
-sample plus a separate failure ledger.
+sample plus a separate failure ledger. \code{sparq_assess_cohort_workflow}
+returns a \code{sparq_cohort_assessment} with summaries, failures, a per-section
+manifest, settings, and optional output paths.
 }
 \examples{
 comparisons <- data.frame(delta = c(0.1, -0.1, 0.05),

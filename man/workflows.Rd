@@ -1,5 +1,6 @@
 \name{sparq_assess_workflow}
 \alias{sparq_assess_workflow}
+\alias{sparq_preset}
 \alias{sparq_assess_adaptive}
 \alias{sparq_assess_script}
 \alias{sparq_prepare_spatial}
@@ -14,6 +15,8 @@ assessment. They do not alter the original input object.
 \section{Calling conventions}{\preformatted{
 sparq_assess_workflow(data, analysis_function,
   output_type = c("scalar", "ranked", "partition", "graph"), ...)
+
+sparq_preset(preset = c("quick", "standard", "thorough"))
 
 sparq_assess_adaptive(data, analysis_function, comparator, support_threshold, ...)
 
@@ -35,6 +38,10 @@ sparq_assess_spatial(object, analysis_function,
   and returning the selected output type.}
   \item{output_type}{The result representation: one numeric scalar, an ordered
   feature vector, named spot labels, or canonical graph edge IDs.}
+  \item{preset}{One of \code{"quick"} (25 perturbations), \code{"standard"}
+  (100 perturbations), or \code{"thorough"} (500 perturbations). A preset sets
+  retention, minimum iterations, bootstrap budgets, and progress frequency;
+  explicit arguments override an individual preset value.}
   \item{comparator}{A function comparing reference and perturbed results.}
   \item{support_threshold}{A prespecified decision threshold for adaptive
   stopping. It is never inferred from the reference result.}
@@ -61,6 +68,7 @@ sparq_assess_spatial(object, analysis_function,
 \code{sparq_assess_spatial} return a SPARQ assessment with a reference result,
 comparison table, support summary, failed-iteration ledger, and settings.
 \code{sparq_assess_adaptive} also returns the stopping history and decision.
+\code{sparq_preset} returns the exact named settings selected by a preset.
 \code{sparq_prepare_spatial} returns a \code{sparq_spatial_input} that retains
 the original object and a standardized spot-coordinate table.
 }
@@ -86,6 +94,8 @@ assessment <- sparq_assess_workflow(
   verbose = FALSE
 )
 assessment
+
+sparq_preset("quick")
 
 spatial_input <- sparq_prepare_spatial(spots, coordinate_columns = c("x", "y"))
 subsetted_spots <- sparq_subset_spatial(spatial_input, c("1", "2", "3"))

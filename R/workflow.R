@@ -3,11 +3,12 @@
 sparq_assess_workflow <-
 function (data, analysis_function, output_type = c("scalar",
     "ranked", "partition", "graph"), stress_model = c("uniform_random",
-    "contiguous_hole", "none", "custom"), retention = 0.75, n_iterations = 100,
+    "contiguous_hole", "none", "custom"), retention = NULL, n_iterations = NULL,
     top_k = 100, x_col = NULL, y_col = NULL, custom_function = NULL,
     result_id = "result", reference_scale = 1, seed = 1, cache_dir = NULL,
     resume = TRUE, cache_key = NULL, failure_action = c("record",
-        "stop"), verbose = TRUE, ...)
+        "stop"), verbose = NULL, progress_every = NULL, preset = "standard",
+    min_iterations = NULL, instability_bootstrap_B = NULL, ...)
 {
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
@@ -18,9 +19,6 @@ function (data, analysis_function, output_type = c("scalar",
     output_type <- match.arg(output_type)
     stress_model <- match.arg(stress_model)
     failure_action <- match.arg(failure_action)
-    sparq_check_number(retention, "retention", .Machine$double.eps,
-        1)
-    sparq_check_number(n_iterations, "n_iterations", 1, integer = TRUE)
     sparq_check_number(reference_scale, "reference_scale")
     sparq_check_number(seed, "seed", 0, integer = TRUE)
     if (output_type == "ranked") {
@@ -38,11 +36,14 @@ function (data, analysis_function, output_type = c("scalar",
         x_col = x_col, y_col = y_col, custom_function = custom_function,
         reference_scale = reference_scale, seed = seed, cache_dir = cache_dir,
         resume = resume, cache_key = cache_key, failure_action = failure_action,
-        verbose = verbose,
+        verbose = verbose, progress_every = progress_every, preset = preset,
+        min_iterations = min_iterations,
+        instability_bootstrap_B = instability_bootstrap_B,
         ...)
     fit$output_type <- output_type
     fit$workflow <- list(output_type = output_type, stress_model = stress_model,
-        retention = retention, n_iterations = n_iterations, top_k = if (output_type ==
+        retention = fit$settings$retention, n_iterations = fit$settings$n_iterations,
+        preset = fit$settings$preset, top_k = if (output_type ==
             "ranked") {
             top_k
         } else {

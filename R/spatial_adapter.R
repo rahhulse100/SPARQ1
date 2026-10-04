@@ -189,11 +189,12 @@ sparq_subset_spatial <- function(spatial_input, spot_ids) {
 sparq_assess_spatial <- function(object, analysis_function,
     output_type = c("scalar", "ranked", "partition", "graph"),
     stress_model = c("uniform_random", "contiguous_hole", "none", "custom"),
-    retention = 0.75, n_iterations = 100, top_k = 100,
+    retention = NULL, n_iterations = NULL, top_k = 100,
     result_id = "result", reference_scale = 1, seed = 1,
     object_type = c("auto", "data.frame", "seurat", "spatialexperiment", "giotto"),
     coordinate_columns = NULL, spot_id_column = NULL, image = NULL,
-    adapter = NULL, verbose = TRUE, ...) {
+    adapter = NULL, verbose = NULL, preset = "standard", progress_every = NULL,
+    min_iterations = NULL, instability_bootstrap_B = NULL, ...) {
 
   if (!is.function(analysis_function)) {
     stop("analysis_function must accept one perturbed spatial object.", call. = FALSE)
@@ -231,6 +232,10 @@ sparq_assess_spatial <- function(object, analysis_function,
     reference_scale = reference_scale,
     seed = seed,
     verbose = verbose,
+    preset = preset,
+    progress_every = progress_every,
+    min_iterations = min_iterations,
+    instability_bootstrap_B = instability_bootstrap_B,
     ...
   )
   fit$spatial_input <- prepared

@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use SPARQ, please cite the software repository and the associated manuscript when available."
+title: "SPARQ: Spatial Perturbation Analysis for Reliability Quantification"
+version: 0.1.0
+date-released: 2026-10-04
+authors:
+  - family-names: Elangovan
+    given-names: Rahhul
+    email: rahhul.s.elangovan-1@ou.edu
+repository-code: "https://github.com/rahhulse100/SPARQ1"
+license: MIT

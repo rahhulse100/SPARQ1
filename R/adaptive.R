@@ -2,19 +2,34 @@
 
 sparq_assess_adaptive <-
 function(data, analysis_function, comparator,
-    stress_model = "uniform_random", retention = 0.75,
-    support_threshold, batch_size = 10, min_iterations = 50,
-    max_iterations = 100, confidence = 0.95,
-    support_bootstrap_B = 1000, result_id = "result",
+    stress_model = "uniform_random", retention = NULL,
+    support_threshold, batch_size = NULL, min_iterations = NULL,
+    max_iterations = NULL, confidence = 0.95,
+    support_bootstrap_B = NULL, result_id = "result",
     x_col = NULL, y_col = NULL, custom_function = NULL,
     reference_scale = 1, seed = 1,
     failure_action = c("record", "stop"), full_result = NULL,
     keep_perturbed_results = FALSE,
     min_reproducibility = 0.5, max_relative_bias = 0.5,
     max_relative_uncertainty = 0.25,
-    instability_bootstrap_B = 2000, verbose = TRUE) {
+    instability_bootstrap_B = NULL, verbose = NULL, preset = "standard") {
 
     failure_action <- match.arg(failure_action)
+    preset_values <- sparq_resolve_preset(
+        preset = preset, retention = retention, n_iterations = max_iterations,
+        min_iterations = min_iterations,
+        instability_bootstrap_B = instability_bootstrap_B,
+        support_bootstrap_B = support_bootstrap_B, batch_size = batch_size,
+        verbose = verbose
+    )
+    retention <- preset_values$retention
+    batch_size <- preset_values$batch_size
+    min_iterations <- preset_values$min_iterations
+    max_iterations <- preset_values$n_iterations
+    support_bootstrap_B <- preset_values$support_bootstrap_B
+    instability_bootstrap_B <- preset_values$instability_bootstrap_B
+    verbose <- preset_values$verbose
+    sparq_inform_preset(preset_values)
 
     if (!is.function(analysis_function) || !is.function(comparator)) {
         stop("analysis_function and comparator must be functions.", call. = FALSE)
@@ -22,11 +37,6 @@ function(data, analysis_function, comparator,
     if (!is.data.frame(data) || !nrow(data)) {
         stop("data must be a nonempty data.frame.", call. = FALSE)
     }
-    if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
-        stop("verbose must be TRUE or FALSE.", call. = FALSE)
-    }
-
-    sparq_check_number(retention, "retention", .Machine$double.eps, 1)
     sparq_check_number(support_threshold, "support_threshold", 0, 1)
     sparq_check_number(batch_size, "batch_size", 1, integer = TRUE)
     sparq_check_number(min_iterations, "min_iterations", 2, integer = TRUE)
@@ -266,6 +276,8 @@ function(data, analysis_function, comparator,
             support_threshold = support_threshold,
             confidence = confidence,
             support_bootstrap_B = support_bootstrap_B,
+            instability_bootstrap_B = instability_bootstrap_B,
+            preset = preset_values$preset,
             reference_scale = reference_scale,
             seed = seed,
             keep_perturbed_results = keep_perturbed_results
