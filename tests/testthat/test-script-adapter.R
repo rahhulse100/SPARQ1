@@ -30,22 +30,22 @@ test_that("script adapter injects input and retrieves the declared result", {
   expect_equal(fit$script$result_object, "banksy_domains")
 })
 
-test_that("script adapter records a missing declared result in its failure ledger", {
+test_that("script adapter rejects a missing declared reference result", {
   script <- tempfile(fileext = ".R")
   writeLines("other_result <- 1", script)
   on.exit(unlink(script), add = TRUE)
 
-  fit <- sparq_assess_script(
-    data = data.frame(value = 1:10),
-    script = script,
-    input_object = "input_data",
-    result_object = "expected_result",
-    output_type = "scalar",
-    n_iterations = 2,
-    min_iterations = 2,
-    instability_bootstrap_B = 2
+  expect_error(
+    sparq_assess_script(
+      data = data.frame(value = 1:10),
+      script = script,
+      input_object = "input_data",
+      result_object = "expected_result",
+      output_type = "scalar",
+      n_iterations = 2,
+      min_iterations = 2,
+      instability_bootstrap_B = 2
+    ),
+    "did not create"
   )
-
-  expect_equal(nrow(fit$failures), 2)
-  expect_match(fit$failures$error_message[1], "did not create")
 })
