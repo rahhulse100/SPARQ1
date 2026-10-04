@@ -1,6 +1,13 @@
+<p align="center">
+  <img src="docs/assets/sparq-hero.png" width="640" alt="SPARQ spatial-transcriptomics perturbation illustration">
+</p>
+
 # SPARQ
 
 **Spatial Perturbation Analysis for Reliability Quantification**
+
+[![R-CMD-check](https://github.com/rahhulse100/SPARQ1/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/rahhulse100/SPARQ1/actions/workflows/R-CMD-check.yaml)
+[![R version](https://img.shields.io/badge/R-%3E%3D%204.1-276DC3)](https://www.r-project.org/)
 
 SPARQ asks whether an analysis result remains consistent when plausible spot loss is introduced into a spatial-transcriptomic section. It does not denoise the data, replace an analysis method, or establish biological truth. It quantifies how sensitive a specified result is to a defined perturbation model.
 
@@ -82,7 +89,32 @@ assessment <- sparq_assess_script(
 )
 ```
 
-The script must use the injected object rather than repeatedly reading an unchanged input file. Current generic workflow functions accept a data frame; direct Seurat and Visium object adapters are not yet implemented.
+The script must use the injected object rather than repeatedly reading an unchanged input file.
+
+## Spatial-object adapters
+
+`sparq_assess_spatial()` accepts a Seurat object, SpatialExperiment object,
+Giotto object, or a coordinate-bearing data frame. SPARQ retains the original
+object and subsets it for every perturbation, so the supplied analysis function
+receives the object type it already expects.
+
+```r
+assessment <- sparq_assess_spatial(
+  object = seurat_spatial_object,
+  analysis_function = function(x) {
+    # Rerun BANKSY or another domain method on x.
+    # Return named spot labels, e.g. setNames(new_domains, colnames(x)).
+  },
+  output_type = "partition",
+  retention = 0.75,
+  n_iterations = 100
+)
+```
+
+For custom spatial classes, provide an adapter with an `extract()` function
+that returns spot IDs and named coordinates, plus a `subset()` function that
+returns the object restricted to retained spot IDs. See
+`?sparq_prepare_spatial` for the exact contract.
 
 ## Adaptive stopping
 

@@ -1,1 +1,4 @@
-^methods_backup_[^/]+$
+^\.github$
+^docs$
+^SPARQ\.Rcheck$
+^.*\.tar\.gz$
