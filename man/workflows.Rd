@@ -11,7 +11,7 @@ These high-level interfaces run a reference analysis, perturb spatial observatio
 rerun the supplied analysis, compare the outputs, and return a standard SPARQ
 assessment. They do not alter the original input object.
 }
-\usage{
+\section{Calling conventions}{\preformatted{
 sparq_assess_workflow(data, analysis_function,
   output_type = c("scalar", "ranked", "partition", "graph"), ...)
 
@@ -27,7 +27,7 @@ sparq_subset_spatial(spatial_input, spot_ids)
 
 sparq_assess_spatial(object, analysis_function,
   output_type = c("scalar", "ranked", "partition", "graph"), ...)
-}
+}}
 \arguments{
   \item{data}{A nonempty spot-level data frame. Each row is an observation that
   can be retained or removed.}

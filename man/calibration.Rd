@@ -12,13 +12,13 @@
 These functions separate continuous support-quality assessment from optional
 threshold calibration and scalar correction policy.
 }
-\usage{
+\section{Calling conventions}{\preformatted{
 sparq_calibrate_threshold(training_score, training_truth, ...)
 sparq_decide(support_quality, threshold)
 sparq_calibrate_scalar(observed_value, perturbed_values,
   reference_type = c("none", "simulation", "replicate", "pathology"), ...)
 sparq_reliability_curve(support_quality, true_error, ...)
-}
+}}
 \arguments{
   \item{training_score}{Continuous support-quality values from training cases.}
   \item{training_truth}{Known binary stable/unstable labels for training cases.}
@@ -32,8 +32,9 @@ sparq_reliability_curve(support_quality, true_error, ...)
 }
 \value{
 Threshold calibration returns selected thresholds and uncertainty summaries.
-\code{sparq_decide} returns a stable/unstable decision. Scalar calibration
-returns the original or conditionally corrected value with an explicit status.
+\code{sparq_decide} validates and returns a scalar-calibration decision table.
+Scalar calibration returns the original or conditionally corrected value with an
+explicit status.
 Reliability functions return binned association summaries; they do not claim
 probability calibration unless separately validated.
 }
@@ -41,5 +42,5 @@ probability calibration unless separately validated.
 scores <- c(0.95, 0.90, 0.20, 0.10)
 truth <- c(1, 1, 0, 0)
 calibration <- sparq_calibrate_threshold(scores, truth, B = 20)
-sparq_decide(scores, calibration$threshold)
+calibration$threshold
 }

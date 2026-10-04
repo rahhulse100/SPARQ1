@@ -9,6 +9,19 @@ sparq_detect_spatial_object <- function(object) {
   "unknown"
 }
 
+sparq_optional_export <- function(package, function_name) {
+  if (!package %in% loadedNamespaces()) {
+    loaded <- tryCatch({
+      loadNamespace(package)
+      TRUE
+    }, error = function(error) FALSE)
+    if (!loaded) {
+      stop(paste0(package, " must be installed to use this object type."), call. = FALSE)
+    }
+  }
+  getExportedValue(package, function_name)
+}
+
 sparq_spatial_coordinate_columns <- function(data, coordinate_columns = NULL) {
   if (!is.null(coordinate_columns)) {
     if (!is.character(coordinate_columns) || length(coordinate_columns) != 2L ||
@@ -45,7 +58,9 @@ sparq_make_spot_table <- function(spot_ids, coordinates, coordinate_columns = NU
   }
   coordinates <- coordinates[match(spot_ids, rownames(coordinates)), , drop = FALSE]
   if (anyNA(coordinates[[coordinate_columns[1]]]) || anyNA(coordinates[[coordinate_columns[2]]]) ||
-      !is.numeric(coordinates[[coordinate_columns[1]]]) || !is.numeric(coordinates[[coordinate_columns[2]]])) {
+      !is.numeric(coordinates[[coordinate_columns[1]]]) || !is.numeric(coordinates[[coordinate_columns[2]]]) ||
+      any(!is.finite(coordinates[[coordinate_columns[1]]])) ||
+      any(!is.finite(coordinates[[coordinate_columns[2]]]))) {
     stop("Spatial coordinates must be finite numeric values for every retained spot.",
       call. = FALSE)
   }
@@ -100,36 +115,38 @@ sparq_prepare_spatial <- function(object,
     spot_table <- sparq_make_spot_table(ids, coordinates, coordinate_columns)
     subsetter <- function(x, spot_ids) x[match(spot_ids, as.character(ids)), , drop = FALSE]
   } else if (object_type == "seurat") {
-    if (!requireNamespace("SeuratObject", quietly = TRUE)) {
-      stop("SeuratObject must be installed to use a Seurat object.", call. = FALSE)
-    }
-    image_names <- SeuratObject::Images(object)
+    seurat_images <- sparq_optional_export("SeuratObject", "Images")
+    seurat_coordinates <- sparq_optional_export("SeuratObject", "GetTissueCoordinates")
+    seurat_cells <- sparq_optional_export("SeuratObject", "Cells")
+    image_names <- seurat_images(object)
     if (is.null(image)) image <- image_names[1]
     if (length(image) != 1L || is.na(image) || !image %in% image_names) {
       stop("image must name one spatial image stored in the Seurat object.", call. = FALSE)
     }
-    coordinates <- SeuratObject::GetTissueCoordinates(object[[image]])
-    ids <- intersect(SeuratObject::Cells(object), rownames(coordinates))
+    coordinates <- seurat_coordinates(object[[image]])
+    ids <- intersect(seurat_cells(object), rownames(coordinates))
     if (!length(ids)) stop("No Seurat cell IDs match the selected image coordinates.", call. = FALSE)
     spot_table <- sparq_make_spot_table(ids, coordinates, coordinate_columns)
     subsetter <- function(x, spot_ids) x[, spot_ids, drop = FALSE]
   } else if (object_type == "spatialexperiment") {
-    if (!requireNamespace("SpatialExperiment", quietly = TRUE)) {
-      stop("SpatialExperiment must be installed to use a SpatialExperiment object.", call. = FALSE)
-    }
-    coordinates <- as.data.frame(SpatialExperiment::spatialCoords(object))
+    spatial_coordinates <- sparq_optional_export("SpatialExperiment", "spatialCoords")
+    coordinates <- as.data.frame(spatial_coordinates(object))
     ids <- colnames(object)
     rownames(coordinates) <- ids
     spot_table <- sparq_make_spot_table(ids, coordinates, coordinate_columns)
     subsetter <- function(x, spot_ids) x[, spot_ids, drop = FALSE]
   } else if (object_type == "giotto") {
-    giotto_package <- if (requireNamespace("GiottoClass", quietly = TRUE)) {
-      "GiottoClass"
-    } else if (requireNamespace("Giotto", quietly = TRUE)) {
-      "Giotto"
-    } else {
+    candidates <- c("GiottoClass", "Giotto")
+    available <- vapply(candidates, function(package) {
+      package %in% loadedNamespaces() || isTRUE(tryCatch({
+        loadNamespace(package)
+        TRUE
+      }, error = function(error) FALSE))
+    }, logical(1))
+    if (!any(available)) {
       stop("GiottoClass or Giotto must be installed to use a giotto object.", call. = FALSE)
     }
+    giotto_package <- candidates[which(available)[1]]
     spatial_locations <- getExportedValue(giotto_package, "spatLocs")(object)
     coordinates <- as.data.frame(spatial_locations, stringsAsFactors = FALSE)
     id_column <- c("cell_ID", "cell_id", "spat_ID", "spat_id")[c("cell_ID", "cell_id", "spat_ID", "spat_id") %in% names(coordinates)][1]

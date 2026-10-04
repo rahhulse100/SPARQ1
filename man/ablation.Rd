@@ -7,13 +7,13 @@
 Compare the complete support score with versions omitting uncertainty or
 reproducibility support and with prespecified fixed-threshold baselines.
 }
-\usage{
+\section{Calling conventions}{\preformatted{
 sparq_ablation_score(rows,
   mode = c("full", "no_uncertainty", "no_reproducibility"))
 sparq_known_truth_ablation(benchmark_result,
   fixed_thresholds = c(0.25, 0.5, 0.75), ...)
 sparq_export_ablation(ablation_result, output_dir)
-}
+}}
 \arguments{
   \item{rows}{Benchmark rows containing recorded support components.}
   \item{mode}{Complete score or one component-deletion variant.}

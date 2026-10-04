@@ -18,7 +18,7 @@ Low-level SPARQ functions generate perturbations, compare a reference output
 with perturbed outputs, and convert the resulting comparison table into a
 support-quality summary.
 }
-\usage{
+\section{Calling conventions}{\preformatted{
 sparq_run(data, analysis_function, comparator, stress_model = "uniform_random",
   retention = 0.75, n_iterations = 100, ...)
 
@@ -30,7 +30,7 @@ sparq_compare_partition(full_partition, perturbed_partition)
 sparq_compare_graph(full_graph, perturbed_graph)
 
 sparq_support_from_comparisons(comparison_table, n_iterations = nrow(comparison_table), ...)
-}
+}}
 \arguments{
   \item{data}{A nonempty data frame with one row per spatial observation.}
   \item{analysis_function}{A function run on the full and perturbed data.}
@@ -42,7 +42,8 @@ sparq_support_from_comparisons(comparison_table, n_iterations = nrow(comparison_
   \item{n_iterations}{Number of requested perturbation runs.}
   \item{full_result, perturbed_results}{Previously computed reference and
   perturbed outputs for \code{sparq_assess}.}
-  \item{full_rank, perturbed_rank}{Ordered unique feature IDs.}
+  \item{full_rank, perturbed_rank, perturbed_result}{Ordered unique feature IDs
+  or a perturbed output passed to a comparator.}
   \item{k}{Size of the ranked top-feature set.}
   \item{full_partition, perturbed_partition}{Named vectors of observation IDs
   and labels.}

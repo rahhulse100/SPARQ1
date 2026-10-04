@@ -16,7 +16,7 @@
 Build, validate, summarize, and export the versioned synthetic benchmarks used
 to test whether support quality tracks defined instability conditions.
 }
-\usage{
+\section{Calling conventions}{\preformatted{
 sparq_methods_design()
 sparq_read_design(path)
 sparq_write_design(path, design = sparq_methods_design())
@@ -26,7 +26,7 @@ sparq_known_truth_stress(benchmark_result, ...)
 sparq_binary_metrics(truth, score, threshold)
 sparq_curves(truth, score)
 sparq_metric_summary(metrics, ...)
-}
+}}
 \arguments{
   \item{path}{Path to a versioned SPARQ design file.}
   \item{design}{A design produced by \code{sparq_methods_design}.}

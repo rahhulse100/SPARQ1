@@ -15,12 +15,12 @@
 Prepare and assess repeated ranked-feature outputs, including feature turnover,
 bias, uncertainty, reproducibility, and optional scalar correction policy.
 }
-\usage{
+\section{Calling conventions}{\preformatted{
 sparq_prepare_ranked_feature_input(data, ...)
 sparq_rank_turnover(data, top_k = 100, ...)
 sparq_pipeline_ranked_feature(data, top_k = 100, ...)
 sparq_pipeline(data, ...)
-}
+}}
 \arguments{
   \item{data}{A result table containing the columns required by the selected
   ranked-feature helper.}

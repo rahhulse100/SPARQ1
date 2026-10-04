@@ -10,7 +10,7 @@
 Validation and utility functions used by SPARQ workflows and available for
 inspection in custom analyses.
 }
-\usage{
+\section{Calling conventions}{\preformatted{
 sparq_validate_results(data, required_cols = c("result_id", "theta_full",
   "theta_pert", "scenario", "iteration"))
 sparq_validate_columns(data, required_cols)
@@ -18,7 +18,7 @@ sparq_safe_cor(x, y, method = "spearman")
 sparq_mode_sign_fraction(x)
 sparq_topk_jaccard(full_ids, pert_ids, k = 100)
 sparq_topk_replacement(full_ids, pert_ids, k = 100)
-}
+}}
 \arguments{
   \item{data}{A data frame to validate.}
   \item{required_cols}{Required column names.}

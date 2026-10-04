@@ -11,7 +11,7 @@
 Create audit-ready reports, identify unstable features, spots, or graph edges,
 or assess results that were produced outside SPARQ.
 }
-\usage{
+\section{Calling conventions}{\preformatted{
 sparq_report(assessment, output_dir = NULL, include_plots = TRUE, verbose = TRUE)
 
 sparq_localize_fragility(full_result, perturbed_results,
@@ -21,11 +21,12 @@ sparq_assess_precomputed(full_results, perturbed_results, comparator, ...)
 sparq_assess_precomputed_files(full_file, perturbed_file, comparator = sparq_compare_scalar, ...)
 sparq_assess_cohort(sample_data, analysis_function, comparator, ...)
 sparq_assess_cohort_parallel(sample_data, analysis_function, comparator, workers = 1, ...)
-}
+}}
 \arguments{
   \item{assessment}{A completed SPARQ assessment.}
   \item{output_dir}{An optional new directory for TSV, RDS, and PDF report files.}
   \item{include_plots}{Whether to create the base-R summary plot.}
+  \item{verbose}{Whether report progress is printed.}
   \item{full_result, perturbed_results}{Reference output and perturbation outputs.}
   \item{output_type}{Output representation used for localization.}
   \item{full_results}{Named reference outputs for multiple samples.}
