@@ -18,6 +18,21 @@ SPARQ supports four built-in output types:
 - **partition**: spot-level domain or cluster labels;
 - **graph**: canonical edge IDs describing a network or neighborhood graph.
 
+## Preflight an analysis before the full run
+
+Before launching an expensive assessment, use one reference run plus one small,
+deterministic spot-removal run to verify that the analysis survives missing
+spots. The preflight checks input size, coordinate columns, output type, and,
+for partitions, exact alignment between returned and retained spot IDs.
+
+```r
+sparq_validate_workflow(
+  data = spot_data,
+  analysis_function = function(data) mean(data$signature_score),
+  output_type = "scalar"
+)
+```
+
 ## Installation
 
 Install the development package from GitHub:

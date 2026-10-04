@@ -80,6 +80,157 @@ sparq_inform_preset <- function(values) {
   )
 }
 
+sparq_validate_workflow <- function(data, analysis_function,
+                                    output_type = c("scalar", "ranked", "partition", "graph"),
+                                    stress_model = c("uniform_random", "contiguous_hole", "none", "custom"),
+                                    x_col = NULL, y_col = NULL,
+                                    spot_id_column = NULL, custom_function = NULL,
+                                    preflight_retention = 0.95, seed = 1,
+                                    verbose = TRUE) {
+  if (!is.data.frame(data) || !nrow(data)) {
+    stop("data must be a nonempty data.frame.", call. = FALSE)
+  }
+  if (!is.function(analysis_function)) {
+    stop("analysis_function must be a function.", call. = FALSE)
+  }
+  output_type <- match.arg(output_type)
+  stress_model <- match.arg(stress_model)
+  sparq_check_number(preflight_retention, "preflight_retention", .Machine$double.eps, 1 - .Machine$double.eps)
+  sparq_check_number(seed, "seed", 0, integer = TRUE)
+  if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+    stop("verbose must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  coordinate_status <- "not required"
+  if (xor(is.null(x_col), is.null(y_col))) {
+    stop("Supply both x_col and y_col, or neither.", call. = FALSE)
+  }
+  if (!is.null(x_col)) {
+    if (!is.character(x_col) || !is.character(y_col) || length(x_col) != 1L || length(y_col) != 1L ||
+        is.na(x_col) || is.na(y_col) || !x_col %in% names(data) || !y_col %in% names(data)) {
+      stop("x_col and y_col must name columns in data.", call. = FALSE)
+    }
+    if (!is.numeric(data[[x_col]]) || !is.numeric(data[[y_col]]) ||
+        any(!is.finite(data[[x_col]])) || any(!is.finite(data[[y_col]]))) {
+      stop("x_col and y_col must contain finite numeric coordinates.", call. = FALSE)
+    }
+    coordinate_status <- "valid"
+  } else if (stress_model == "contiguous_hole") {
+    stop("contiguous_hole preflight requires finite numeric x_col and y_col.", call. = FALSE)
+  }
+
+  input_ids <- if (!is.null(spot_id_column)) {
+    if (!is.character(spot_id_column) || length(spot_id_column) != 1L || !spot_id_column %in% names(data)) {
+      stop("spot_id_column must name a column in data.", call. = FALSE)
+    }
+    as.character(data[[spot_id_column]])
+  } else if (!is.null(rownames(data)) && !anyDuplicated(rownames(data)) && all(nzchar(rownames(data)))) {
+    rownames(data)
+  } else {
+    as.character(seq_len(nrow(data)))
+  }
+  if (anyNA(input_ids) || any(!nzchar(input_ids)) || anyDuplicated(input_ids)) {
+    stop("Input spot IDs must be unique and nonmissing.", call. = FALSE)
+  }
+
+  validate_output <- function(result, expected_ids, stage) {
+    fail <- function(message) {
+      stop(paste0(stage, " analysis returned an invalid ", output_type, " output: ", message), call. = FALSE)
+    }
+    if (output_type == "scalar") {
+      value <- suppressWarnings(as.numeric(result))
+      if (length(value) != 1L || !is.finite(value)) fail("expected one finite numeric value")
+      return(list(n_returned = 1L, id_status = "not applicable"))
+    }
+    values <- as.character(result)
+    if (!length(values) || anyNA(values) || any(!nzchar(values))) {
+      fail("expected a nonempty vector of nonmissing values")
+    }
+    if (output_type %in% c("ranked", "graph")) {
+      if (anyDuplicated(values)) fail("expected unique feature or edge IDs")
+      return(list(n_returned = length(values), id_status = "not applicable"))
+    }
+    returned_ids <- names(result)
+    if (is.null(returned_ids) || anyNA(returned_ids) || any(!nzchar(returned_ids)) || anyDuplicated(returned_ids)) {
+      fail("partition labels must be named by unique, nonmissing spot IDs")
+    }
+    if (!setequal(returned_ids, expected_ids)) {
+      missing_ids <- length(setdiff(expected_ids, returned_ids))
+      extra_ids <- length(setdiff(returned_ids, expected_ids))
+      fail(paste0("spot IDs do not match retained data (", missing_ids, " missing; ", extra_ids, " unexpected)"))
+    }
+    list(n_returned = length(values), id_status = "exact retained-spot match")
+  }
+
+  sparq_inform(paste0("Preflight: validating ", nrow(data), " input observations and a small spot-removal rerun."), verbose)
+  full_result <- tryCatch(
+    sparq_with_seed(sparq_seed(seed, 0L, 21L), analysis_function(data)),
+    error = function(error) stop(paste0("Reference analysis failed during preflight: ", conditionMessage(error)), call. = FALSE)
+  )
+  full_check <- validate_output(full_result, input_ids, "Reference")
+
+  if (stress_model == "none") {
+    perturbed_data <- data
+    retained_ids <- input_ids
+    perturbation_status <- "not run: stress_model is none"
+  } else {
+    perturbed_data <- tryCatch(
+      sparq_stress_model(
+        data = data, retention = preflight_retention, model = "uniform_random",
+        x_col = x_col, y_col = y_col, custom_function = custom_function,
+        iteration = 1L, seed = sparq_seed(seed, 1L, 21L)
+      ),
+      error = function(error) stop(paste0("Could not create the preflight perturbation: ", conditionMessage(error)), call. = FALSE)
+    )
+    if (nrow(perturbed_data) >= nrow(data)) {
+      stop("Preflight did not remove any observations. Use more input observations or lower preflight_retention.", call. = FALSE)
+    }
+    retained_ids <- if (!is.null(spot_id_column)) {
+      as.character(perturbed_data[[spot_id_column]])
+    } else if (!is.null(rownames(perturbed_data)) && all(nzchar(rownames(perturbed_data)))) {
+      rownames(perturbed_data)
+    } else {
+      as.character(seq_len(nrow(perturbed_data)))
+    }
+    perturbation_status <- "small uniform-random spot removal"
+  }
+  perturbed_result <- tryCatch(
+    sparq_with_seed(sparq_seed(seed, 1L, 22L), analysis_function(perturbed_data)),
+    error = function(error) stop(paste0("Perturbed analysis failed during preflight: ", conditionMessage(error)), call. = FALSE)
+  )
+  perturbed_check <- validate_output(perturbed_result, retained_ids, "Perturbed")
+
+  checks <- data.frame(
+    check = c("input observations", "coordinate columns", "reference output", "perturbed output", "spot-removal rerun"),
+    status = c("passed", coordinate_status, "passed", "passed", "passed"),
+    detail = c(
+      as.character(nrow(data)), coordinate_status,
+      paste0(full_check$n_returned, " values; ", full_check$id_status),
+      paste0(perturbed_check$n_returned, " values; ", perturbed_check$id_status),
+      paste0(nrow(perturbed_data), "/", nrow(data), " retained; ", perturbation_status)
+    ),
+    stringsAsFactors = FALSE
+  )
+  out <- list(
+    passed = TRUE, input_size = nrow(data), retained_size = nrow(perturbed_data),
+    output_type = output_type, stress_model = stress_model,
+    preflight_retention = preflight_retention, seed = seed,
+    coordinate_status = coordinate_status, checks = checks,
+    reference_result = full_result, perturbed_result = perturbed_result
+  )
+  class(out) <- "sparq_workflow_preflight"
+  sparq_inform(paste0("Preflight passed: ", nrow(data), " input observations; ", nrow(perturbed_data), " retained; ", output_type, " output contract confirmed."), verbose)
+  out
+}
+
+print.sparq_workflow_preflight <- function(x, ...) {
+  cat("<SPARQ workflow preflight>\n")
+  cat("  Input observations: ", x$input_size, "; retained for dry run: ", x$retained_size, "\n", sep = "")
+  cat("  Output type: ", x$output_type, "; coordinate columns: ", x$coordinate_status, "\n", sep = "")
+  cat("  Result: passed\n")
+  invisible(x)
+}
+
 summary.sparq_assessment <- function(object, ...) {
   out <- object$summary
   if (!is.data.frame(out)) {

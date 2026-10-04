@@ -1,6 +1,7 @@
 \name{sparq_assess_workflow}
 \alias{sparq_assess_workflow}
 \alias{sparq_preset}
+\alias{sparq_validate_workflow}
 \alias{sparq_assess_adaptive}
 \alias{sparq_assess_script}
 \alias{sparq_prepare_spatial}
@@ -17,6 +18,9 @@ sparq_assess_workflow(data, analysis_function,
   output_type = c("scalar", "ranked", "partition", "graph"), ...)
 
 sparq_preset(preset = c("quick", "standard", "thorough"))
+
+sparq_validate_workflow(data, analysis_function,
+  output_type = c("scalar", "ranked", "partition", "graph"), ...)
 
 sparq_assess_adaptive(data, analysis_function, comparator, support_threshold, ...)
 
@@ -42,6 +46,8 @@ sparq_assess_spatial(object, analysis_function,
   (100 perturbations), or \code{"thorough"} (500 perturbations). A preset sets
   retention, minimum iterations, bootstrap budgets, and progress frequency;
   explicit arguments override an individual preset value.}
+  \item{preflight_retention}{The fraction retained in the one small dry-run
+  perturbation; by default 95 percent.}
   \item{comparator}{A function comparing reference and perturbed results.}
   \item{support_threshold}{A prespecified decision threshold for adaptive
   stopping. It is never inferred from the reference result.}
@@ -69,6 +75,8 @@ sparq_assess_spatial(object, analysis_function,
 comparison table, support summary, failed-iteration ledger, and settings.
 \code{sparq_assess_adaptive} also returns the stopping history and decision.
 \code{sparq_preset} returns the exact named settings selected by a preset.
+\code{sparq_validate_workflow} returns a \code{sparq_workflow_preflight}
+object containing the reference and dry-run results plus a pass/fail table.
 \code{sparq_prepare_spatial} returns a \code{sparq_spatial_input} that retains
 the original object and a standardized spot-coordinate table.
 }
@@ -96,6 +104,14 @@ assessment <- sparq_assess_workflow(
 assessment
 
 sparq_preset("quick")
+
+preflight <- sparq_validate_workflow(
+  data = spots,
+  analysis_function = function(x) mean(x$value),
+  output_type = "scalar",
+  verbose = FALSE
+)
+preflight
 
 spatial_input <- sparq_prepare_spatial(spots, coordinate_columns = c("x", "y"))
 subsetted_spots <- sparq_subset_spatial(spatial_input, c("1", "2", "3"))
