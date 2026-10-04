@@ -1,4 +1,5 @@
 test_that("ranked feature pipeline calibrates up, down, and refuses unsupported results", {
+  skip_if_not_installed("data.table")
   set.seed(1)
 
   x <- data.frame(
