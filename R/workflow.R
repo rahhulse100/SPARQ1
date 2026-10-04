@@ -105,8 +105,8 @@ function (full_result, perturbed_results, output_type = c("scalar",
         perturbed_common <- as.character(perturbed_labels[common_ids])
         overlap <- table(reference_common, perturbed_common)
         mapping <- vapply(colnames(overlap), function(perturbed_label) {
-            counts <- overlap[, perturbed_label]
-            candidates <- names(counts)[counts == max(counts)]
+            counts <- overlap[, perturbed_label, drop = TRUE]
+            candidates <- rownames(overlap)[counts == max(counts)]
             sort(candidates)[1]
         }, character(1))
         mapped <- unname(mapping[as.character(perturbed_labels)])

@@ -10,8 +10,8 @@ License: MIT
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Depends: R (>= 4.1.0)
-Imports: stats, parallel, utils, tools
-Suggests: testthat, data.table
+Imports: stats, parallel, utils, tools, data.table
+Suggests: testthat
 Collate: 'utils.R' 'generic.R' 'ranked_feature.R' 'support.R' 'api.R'
         'legacy_exports.R' 'methods_impl.R' 'workflow.R' 'adaptive.R'
         'script_adapter.R' 'ablation.R'
