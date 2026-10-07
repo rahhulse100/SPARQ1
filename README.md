@@ -320,7 +320,7 @@ If reference and perturbed outputs have already been generated elsewhere, use `s
 
 ## Interpretation
 
-SPARQ returns a continuous support-quality score, instability summaries, failed-iteration records, and—when perturbed outputs are retained—fragility localization. A high score supports consistency under the specified perturbation model; it does not prove a result is biologically correct or unchanged under every possible source of variation.
+SPARQ returns a continuous support-quality score, instability summaries, failed-iteration records, and when perturbed outputs are retained—fragility localization. A high score supports consistency under the specified perturbation model; it does not prove a result is biologically correct or unchanged under every possible source of variation.
 
 ## Development status
 
